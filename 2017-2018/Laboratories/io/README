@@ -1,0 +1,9 @@
+README - Lab 1
+
+Untar this tarball on your BeagleBone Black in /data.
+
+Run "make" to build both static and dynamic versions of the benchmark.
+
+Run "io-static -c /data/iofile" to create a benchmark data file.
+
+Run "io-static -v -r /data/iofile" to test it out.
