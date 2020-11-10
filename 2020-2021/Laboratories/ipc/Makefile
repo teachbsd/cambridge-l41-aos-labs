@@ -2,10 +2,14 @@ all: ipc-static ipc-dynamic
 
 CFLAGS=-DWITH_PMC -Wall
 
-ipc-static: ipc.c
-	cc ${CFLAGS} -o ${.TARGET} -DPROGNAME=\"${.TARGET}\" ipc.c -static \
-	    -lpmc -lpthread
+ipc-static: ipc-static.o
+	c++ -o ${.TARGET} ${.ALLSRC} -lpmc -lpthread -static
 
-ipc-dynamic: ipc.c
-	cc ${CFLAGS} -o ${.TARGET} -DPROGNAME=\"${.TARGET}\" ipc.c -dynamic \
-	    -lpmc -lpthread
+ipc-static.o: ipc.c
+	cc ${CFLAGS} -c -o ${.TARGET} -DPROGNAME=\"${.TARGET}\" ipc.c -static
+
+ipc-dynamic: ipc-dynamic.o
+	c++ -o ${.TARGET} ${.ALLSRC} -lpmc -lpthread -dynamic
+
+ipc-dynamic.o: ipc.c
+	cc ${CFLAGS} -c -o ${.TARGET} -DPROGNAME=\"${.TARGET}\" ipc.c -dynamic
