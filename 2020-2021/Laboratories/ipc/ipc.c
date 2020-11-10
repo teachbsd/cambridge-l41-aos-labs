@@ -238,7 +238,7 @@ pmc_setup(void)
 		if (counterset[i] == NULL)
 			continue;
 		if (pmc_allocate(counterset[i], PMC_MODE_TC,
-		    PMC_F_DESCENDANTS, PMC_CPU_ANY, &pmcid[i]) < 0)
+		    PMC_F_DESCENDANTS, PMC_CPU_ANY, &pmcid[i], 64*1024) < 0)
 			err(EX_OSERR, "FAIL: pmc_allocate %s", counterset[i]);
 		if (pmc_attach(pmcid[i], 0) != 0)
 			err(EX_OSERR, "FAIL: pmc_attach %s", counterset[i]);
