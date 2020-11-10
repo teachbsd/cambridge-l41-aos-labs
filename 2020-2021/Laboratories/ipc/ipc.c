@@ -118,50 +118,45 @@ static long totalsize = TOTALSIZE;	/* total I/O size */
 #define	COUNTERSET_MAX_EVENTS	4	/* Maximum hardware registers */
 
 #define	COUNTERSET_TRAILER						\
-	"INSTR_EXECUTED",	/* Instructions retired */		\
-	"CLOCK_CYCLES"		/* Cycle counter */
+	"INST_RETIRED",		/* Instructions retired */		\
+	"CPU_CYCLES"		/* Cycle counter */
 
 #define	COUNTERSET_TRAILER_INSTR_EXECUTED	2	/* Array index */
 #define	COUNTERSET_TRAILER_CLOCK_CYCLES		3	/* Array index */
 
 static const char *counterset_l1d[COUNTERSET_MAX_EVENTS] = {
-	"L1_DCACHE_ACCESS",	/* Level-1 data-cache hits */
-	"L1_DCACHE_REFILL",	/* Level-1 data-cache misses */
+	"L1D_CACHE",		/* Level-1 data-cache hits */
+	"L1D_CACHE_REFILL",	/* Level-1 data-cache misses */
 	COUNTERSET_TRAILER
 };
 
 static const char *counterset_l1i[COUNTERSET_MAX_EVENTS] = {
-	NULL,			/* Level-1 instruction-cache hits (not on A8) */
-	"L1_ICACHE_REFILL",	/* Level-1 instruction-cache misses */
+	"L1I_CACHE",		/* Level-1 instruction-cache hits */
+	"L1I_CACHE_REFILL",	/* Level-1 instruction-cache misses */
 	COUNTERSET_TRAILER
 };
 
-/*
- * XXXRW: For reasons we don't understand, L2_CACHE_MISS does not return the
- * L2 cache miss rate.  Maybe we have misunderstood the documentation.
- * Regardless, we can't report it.
- */
 static const char *counterset_l2[COUNTERSET_MAX_EVENTS] = {
-	"L2_ACCESS",		/* Level-2 cache hits */
-	NULL,			/* Level-2 cache misses (not on A8) */
+	"L2D_CACHE",		/* Level-2 cache hits */
+	"L2D_CACHE_REFILL",	/* Level-2 cache misses */
 	COUNTERSET_TRAILER
 };
 
 static const char *counterset_mem[COUNTERSET_MAX_EVENTS] = {
-	"MEM_READ",		/* Memory reads issued by instructions */
-	"MEM_WRITE",		/* Memory writes issued by instructions */
+	"MEM_ACCESS",		/* Memory reads/writes issued by instructions */
+	NULL,
 	COUNTERSET_TRAILER
 };
 
 static const char *counterset_tlb[COUNTERSET_MAX_EVENTS] = {
-	"ITLB_REFILL",		/* Instruction-TLB misses */
-	"DTLB_REFILL",		/* Data-TLB misses */
+	"L1I_TLB_REFILL",	/* Instruction-TLB refills */
+	"L1D_TLB_REFILL",	/* Data-TLB refills */
 	COUNTERSET_TRAILER
 };
 
-static const char *counterset_axi[COUNTERSET_MAX_EVENTS] = {
-	"AXI_READ",		/* Memory reads over AXI bus */
-	"AXI_WRITE",		/* Memory writes over AXI bus */
+static const char *counterset_bus[COUNTERSET_MAX_EVENTS] = {
+	"BUS_ACCESS",		/* Memory accesses over the bus */
+	NULL,
 	COUNTERSET_TRAILER
 };
 
@@ -171,7 +166,7 @@ static const char *counterset_axi[COUNTERSET_MAX_EVENTS] = {
 #define	BENCHMARK_PMC_L2_STRING		"l2"
 #define	BENCHMARK_PMC_MEM_STRING	"mem"
 #define	BENCHMARK_PMC_TLB_STRING	"tlb"
-#define	BENCHMARK_PMC_AXI_STRING	"axi"
+#define	BENCHMARK_PMC_BUS_STRING	"bus"
 
 #define	BENCHMARK_PMC_INVALID		-1
 #define	BENCHMARK_PMC_NONE		0
@@ -180,7 +175,7 @@ static const char *counterset_axi[COUNTERSET_MAX_EVENTS] = {
 #define	BENCHMARK_PMC_L2		3
 #define	BENCHMARK_PMC_MEM		4
 #define	BENCHMARK_PMC_TLB		5
-#define	BENCHMARK_PMC_AXI		6
+#define	BENCHMARK_PMC_BUS		6
 
 #define	BENCHMARK_PMC_DEFAULT	BENCHMARK_PMC_NONE
 static unsigned int benchmark_pmc = BENCHMARK_PMC_NONE;
@@ -219,8 +214,8 @@ pmc_setup(void)
 		counterset = counterset_tlb;
 		break;
 
-	case BENCHMARK_PMC_AXI:
-		counterset = counterset_axi;
+	case BENCHMARK_PMC_BUS:
+		counterset = counterset_bus;
 		break;
 
 	default:
@@ -308,8 +303,8 @@ benchmark_pmc_from_string(const char *string)
 		return (BENCHMARK_PMC_MEM);
 	else if (strcmp(BENCHMARK_PMC_TLB_STRING, string) == 0)
 		return (BENCHMARK_PMC_TLB);
-	else if (strcmp(BENCHMARK_PMC_AXI_STRING, string) == 0)
-		return (BENCHMARK_PMC_AXI);
+	else if (strcmp(BENCHMARK_PMC_BUS_STRING, string) == 0)
+		return (BENCHMARK_PMC_BUS);
 	else
 		return (BENCHMARK_PMC_INVALID);
 }
@@ -334,8 +329,8 @@ benchmark_pmc_to_string(int type)
 	case BENCHMARK_PMC_TLB:
 		return (BENCHMARK_PMC_TLB_STRING);
 
-	case BENCHMARK_PMC_AXI:
-		return (BENCHMARK_PMC_AXI_STRING);
+	case BENCHMARK_PMC_BUS:
+		return (BENCHMARK_PMC_BUS_STRING);
 
 	default:
 		return (BENCHMARK_PMC_INVALID_STRING);
@@ -419,7 +414,7 @@ usage(void)
 	fprintf(stderr,
 	    "%s [-Bqsv] [-b buffersize] [-i pipe|local|tcp] [-p tcp_port]\n\t"
 #ifdef WITH_PMC
-	    "[-P l1d|l1i|l2|mem|tlb|axi] "
+	    "[-P l1d|l1i|l2|mem|tlb|bus] "
 #endif
 	    "[-t totalsize] mode\n", PROGNAME);
 	fprintf(stderr,
@@ -434,7 +429,7 @@ usage(void)
   "    -i pipe|local|tcp      Select pipe, local sockets, or TCP (default: %s)\n"
   "    -p tcp_port            Set TCP port number (default: %u)\n"
 #ifdef WITH_PMC
-  "    -P l1d|l1i|l2|mem|tlb|axi  Enable hardware performance counters\n"
+  "    -P l1d|l1i|l2|mem|tlb|bus  Enable hardware performance counters\n"
 #endif
   "    -q                     Just run the benchmark, don't print stuff out\n"
   "    -s                     Set send/receive socket-buffer sizes to buffersize\n"
