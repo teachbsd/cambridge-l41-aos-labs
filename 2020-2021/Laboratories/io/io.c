@@ -43,16 +43,6 @@
  * few summary notes and statistics.
  */
 
-#define	timespecsub(vvp, uvp)						\
-	do {								\
-		(vvp)->tv_sec -= (uvp)->tv_sec;				\
-		(vvp)->tv_nsec -= (uvp)->tv_nsec;			\
-		if ((vvp)->tv_nsec < 0) {				\
-			(vvp)->tv_sec--;				\
-			(vvp)->tv_nsec += 1000000000;			\
-		}							\
-	} while (0)
-
 #define	BLOCKSIZE	(16 * 1024UL)
 #define	TOTALSIZE	(16 * 1024 * 1024UL)
 
@@ -208,7 +198,7 @@ io(const char *path)
 	 * Now we can disruptively print things -- if we're not in quiet mode.
 	 */
 	if (!qflag) {
-		timespecsub(&ts_finish, &ts_start);
+		timespecsub(&ts_finish, &ts_start, &ts_finish);
 
 		if (vflag) {
 			printf("Benchmark configuration:\n");
