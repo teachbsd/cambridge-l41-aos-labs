@@ -13,3 +13,6 @@ ipc-dynamic: ipc-dynamic.o
 
 ipc-dynamic.o: ipc.c
 	cc ${CFLAGS} -c -o ${.TARGET} -DPROGNAME=\"${.TARGET}\" ipc.c -dynamic
+
+clean:
+	rm -f ipc-dynamic.o ipc-dynamic ipc-static.o ipc-static
