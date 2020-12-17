@@ -58,16 +58,6 @@
  * extended to support TCP.
  */
 
-#define	timespecsub(vvp, uvp)						\
-	do {								\
-		(vvp)->tv_sec -= (uvp)->tv_sec;				\
-		(vvp)->tv_nsec -= (uvp)->tv_nsec;			\
-		if ((vvp)->tv_nsec < 0) {				\
-			(vvp)->tv_sec--;				\
-			(vvp)->tv_nsec += 1000000000;			\
-		}							\
-	} while (0)
-
 static unsigned int Bflag;	/* bare */
 static unsigned int qflag;	/* quiet */
 static unsigned int sflag;	/* set socket-buffer sizes */
@@ -573,7 +563,7 @@ do_2thread(int readfd, int writefd, long blockcount, void *readbuf,
 	finishtime = receiver(readfd, blockcount, readbuf);
 	if (pthread_join(thread, NULL) < 0)
 		err(EX_OSERR, "FAIL: pthread_join");
-	timespecsub(&finishtime, &sa.sa_starttime);
+	timespecsub(&finishtime, &sa.sa_starttime, &finishtime);
 	return (finishtime);
 }
 
@@ -612,7 +602,7 @@ do_2proc(int readfd, int writefd, long blockcount, void *readbuf,
 		err(EX_OSERR, "FAIL: waitpid");
 	if (pid2 != pid)
 		err(EX_OSERR, "FAIL: waitpid PID mismatch");
-	timespecsub(&finishtime, &sap->sa_starttime);
+	timespecsub(&finishtime, &sap->sa_starttime, &finishtime);
 	return (finishtime);
 }
 
@@ -715,7 +705,7 @@ do_1thread(int readfd, int writefd, long blockcount, void *readbuf,
 #endif
 	if (clock_gettime(CLOCK_REALTIME, &finishtime) < 0)
 		err(EX_OSERR, "FAIL: clock_gettime");
-	timespecsub(&finishtime, &starttime);
+	timespecsub(&finishtime, &starttime, &finishtime);
 	return (finishtime);
 }
 
