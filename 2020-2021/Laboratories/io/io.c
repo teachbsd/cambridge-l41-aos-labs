@@ -24,6 +24,7 @@
  * SUCH DAMAGE.
  */
 
+#include <sys/mman.h>
 #include <sys/time.h>
 
 #include <fcntl.h>
@@ -134,9 +135,10 @@ io(const char *path)
 		/*
 		 * Allocate zero-filled memory for our I/O buffer.
 		 */
-		buf = calloc(buffersize, 1);
+		buf = mmap(NULL, buffersize, PROT_READ | PROT_WRITE, MAP_ANON,
+		    -1, 0);
 		if (buf == NULL)
-			xo_err(EX_OSERR, "FAIL: calloc");
+			xo_err(EX_OSERR, "FAIL: mmap");
 
 		/*
 		 * If we're in 'create' mode, then create (or truncate) the
@@ -257,7 +259,7 @@ io(const char *path)
 		 * Just a little cleaning up between runs.
 		 */
 		close(fd);
-		free(buf);
+		munmap(buf, buffersize);
 	}
 	if (!qflag) {
 		xo_close_list("benchmark_samples");
