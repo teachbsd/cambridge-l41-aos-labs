@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2015 Robert N. M. Watson
+ * Copyright (c) 2015, 2020 Robert N. M. Watson
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,9 +26,9 @@
 
 #include <sys/time.h>
 
-#include <err.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <libxo/xo.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sysexits.h>
@@ -65,11 +65,9 @@ static void
 usage(void)
 {
 
-	fprintf(stderr,
-	    "%s -c|-r|-w [-Bdqsv] [-b buffersize] [-t totalsize] path\n",
-	    PROGNAME);
-	fprintf(stderr,
-  "\n"
+	xo_error("usage: io %s -c|-r|-w [-Bdqsv] [-b buffersize] "
+	    "[-t totalsize] path\n", PROGNAME);
+	xo_error("\n"
   "Modes (pick one):\n"
   "    -c              'create mode': create benchmark data file\n"
   "    -r              'read mode': read() benchmark\n"
@@ -103,18 +101,18 @@ io(const char *path)
 	double secs, rate;
 
 	if (totalsize % buffersize != 0)
-		errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple of "
-		    "buffersize (%ld)", totalsize, buffersize);
+		xo_errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple "
+		    "of buffersize (%ld)", totalsize, buffersize);
 	blockcount = totalsize / buffersize;
 	if (blockcount < 0)
-		errx(EX_USAGE, "FAIL: negative block count");
+		xo_errx(EX_USAGE, "FAIL: negative block count");
 
 	/*
 	 * Allocate zero-filled memory for our I/O buffer.
 	 */
 	buf = calloc(buffersize, 1);
 	if (buf == NULL)
-		err(EX_OSERR, "FAIL: calloc");
+		xo_err(EX_OSERR, "FAIL: calloc");
 
 	/*
 	 * If we're in 'create' mode, then create (or truncate) the file, and
@@ -127,7 +125,7 @@ io(const char *path)
 		fd = open(path, (wflag ? O_RDWR : O_RDONLY) |
 		    (dflag ? O_DIRECT : 0));
 	if (fd < 0)
-		err(EX_NOINPUT, "FAIL: %s", path);
+		xo_err(EX_NOINPUT, "FAIL: %s", path);
 
 	/*
 	 * Before we start, fsync() the target file in case any I/O remains
@@ -169,7 +167,7 @@ io(const char *path)
 	 * other threads in the system may use the call as well!
 	 */
 	if (clock_gettime(CLOCK_REALTIME, &ts_start) < 0)
-		errx(EX_OSERR, "FAIL: clock_gettime");
+		xo_errx(EX_OSERR, "FAIL: clock_gettime");
 
 	/*
 	 * HERE BEGINS THE BENCHMARK.
@@ -180,10 +178,11 @@ io(const char *path)
 		else
 			len = read(fd, buf, buffersize);
 		if (len < 0)
-			err(EX_IOERR, "FAIL: %s", wflag ? "write" : "read");
-		if (len != buffersize)
-			errx(EX_IOERR, "FAIL: partial %s", wflag ? "write" :
+			xo_err(EX_IOERR, "FAIL: %s", wflag ? "write" :
 			    "read");
+		if (len != buffersize)
+			xo_errx(EX_IOERR, "FAIL: partial %s", wflag ?
+			    "write" : "read");
 	}
 	if (sflag)
 		fsync(fd);
@@ -192,27 +191,37 @@ io(const char *path)
 	 */
 
 	if (clock_gettime(CLOCK_REALTIME, &ts_finish) < 0)
-		errx(EX_OSERR, "FAIL: clock_gettime");
+		xo_errx(EX_OSERR, "FAIL: clock_gettime");
 
 	/*
 	 * Now we can disruptively print things -- if we're not in quiet mode.
 	 */
 	if (!qflag) {
-		timespecsub(&ts_finish, &ts_start, &ts_finish);
-
+		/*
+		 * Configuration information first, if requested.
+		 */
 		if (vflag) {
-			printf("Benchmark configuration:\n");
-			printf("  buffersize: %ld\n", buffersize);
-			printf("  totalsize: %ld\n", totalsize);
-			printf("  blockcount: %ld\n", blockcount);
-			printf("  operation: %s\n", cflag ? "create" :
-			    (wflag ? "write" : "read"));
-			printf("  path: %s\n", path);
-			printf("  time: %jd.%09jd\n",
-			    (intmax_t)ts_finish.tv_sec,
-			    (intmax_t)ts_finish.tv_nsec);
+			xo_open_container("benchmark_configuration");
+			xo_emit("Benchmark configuration:\n");
+			xo_emit("  buffersize: {:buffersize/%ld}\n",
+			    buffersize);
+			xo_emit("  totalsize: {:totalsize/%ld}\n", totalsize);
+			xo_emit("  blockcount: {:blockcount/%ld}\n",
+			    blockcount);
+			xo_emit("  operation: {:operation/%s}\n", cflag ?
+			    "create" : (wflag ? "write" : "read"));
+			xo_emit("  path: {:path/%s}\n", path);
+			xo_close_container("benchmark_configuration");
 		}
 
+		/*
+		 * Then our one datum.  In the future, we might print multiple
+		 * data items.
+		 */
+		xo_open_list("benchmark_samples");
+		xo_open_instance("datum");
+
+		timespecsub(&ts_finish, &ts_start, &ts_finish);
 		/* Seconds with fractional component. */
 		secs = (float)ts_finish.tv_sec + (float)ts_finish.tv_nsec /
 		    1000000000;
@@ -223,7 +232,17 @@ io(const char *path)
 		/* Kilobytes/second. */
 		rate /= (1024);
 
-		printf("%.2F KBytes/sec\n", rate);
+		if (vflag) {
+			/* XXXRW: Ideally would print as a float? */
+			xo_emit("time: {:time/%jd.%09jd} seconds\t",
+			    (intmax_t)ts_finish.tv_sec,
+			    (intmax_t)ts_finish.tv_nsec);
+		}
+		xo_emit("bandwidth: {:bandwidth/%1.2F} KBytes/sec\n", rate);
+
+		xo_close_instance("datum");
+		xo_close_list("benchmark_samples");
+		xo_finish();
 	}
 	close(fd);
 }
@@ -237,6 +256,10 @@ main(int argc, char *argv[])
 	const char *path;
 	char *endp;
 	int ch;
+
+	argc = xo_parse_args(argc, argv);
+	if (argc < 0)
+		exit(EX_USAGE);
 
 	buffersize = BLOCKSIZE;
 	totalsize = TOTALSIZE;

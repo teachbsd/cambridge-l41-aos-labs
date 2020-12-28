@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2015 Robert N. M. Watson
+ * Copyright (c) 2015, 2020 Robert N. M. Watson
  * Copyright (c) 2015 Bjoern A. Zeeb
  * All rights reserved.
  *
@@ -35,13 +35,13 @@
 #include <netinet/in.h>
 
 #include <assert.h>
-#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #ifdef WITH_PMC
 #include <pmc.h>
 #endif
+#include <libxo/xo.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,7 +52,7 @@
 
 
 /*
- * L41: Lab 4-5 - TCP tracing
+ * L41: Lab 2-5 - IPC and TCP tracing.
  *
  * Based on the simplistic IPC benchmark used in prior labs, this version is
  * extended to support TCP.
@@ -218,17 +218,20 @@ pmc_setup(void)
 	 */
 	bzero(pmc_values, sizeof(pmc_values));
 	if (pmc_init() < 0)
-		err(EX_OSERR, "FAIL: pmc_init");
+		xo_err(EX_OSERR, "FAIL: pmc_init");
 	for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
 		if (counterset[i] == NULL)
 			continue;
 		if (pmc_allocate(counterset[i], PMC_MODE_TC,
 		    PMC_F_DESCENDANTS, PMC_CPU_ANY, &pmcid[i], 64*1024) < 0)
-			err(EX_OSERR, "FAIL: pmc_allocate %s", counterset[i]);
+			xo_err(EX_OSERR, "FAIL: pmc_allocate %s",
+			    counterset[i]);
 		if (pmc_attach(pmcid[i], 0) != 0)
-			err(EX_OSERR, "FAIL: pmc_attach %s", counterset[i]);
+			xo_err(EX_OSERR, "FAIL: pmc_attach %s",
+			    counterset[i]);
 		if (pmc_write(pmcid[i], 0) < 0)
-			err(EX_OSERR, "FAIL: pmc_write  %s", counterset[i]);
+			xo_err(EX_OSERR, "FAIL: pmc_write  %s",
+			    counterset[i]);
 	}
 }
 
@@ -241,9 +244,11 @@ pmc_teardown(void)
 		if (counterset[i] == NULL)
 			continue;
 		if (pmc_detach(pmcid[i], 0) != 0)
-			err(EX_OSERR, "FAIL: pmc_detach %s", counterset[i]);
+			xo_err(EX_OSERR, "FAIL: pmc_detach %s",
+			    counterset[i]);
 		if (pmc_release(pmcid[i]) < 0)
-			err(EX_OSERR, "FAIL: pmc_release %s", counterset[i]);
+			xo_err(EX_OSERR, "FAIL: pmc_release %s",
+			    counterset[i]);
 	}
 }
 
@@ -256,7 +261,7 @@ pmc_begin(void)
 		if (counterset[i] == NULL)
 			continue;
 		if (pmc_start(pmcid[i]) < 0)
-			err(EX_OSERR, "FAIL: pmc_start %s", counterset[i]);
+			xo_err(EX_OSERR, "FAIL: pmc_start %s", counterset[i]);
 	}
 }
 
@@ -269,13 +274,13 @@ pmc_end(void)
 		if (counterset[i] == NULL)
 			continue;
 		if (pmc_read(pmcid[i], &pmc_values[i]) < 0)
-			err(EX_OSERR, "FAIL: pmc_read %s", counterset[i]);
+			xo_err(EX_OSERR, "FAIL: pmc_read %s", counterset[i]);
 	}
 	for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
 		if (counterset[i] == NULL)
 			continue;
 		if (pmc_stop(pmcid[i]) < 0)
-			err(EX_OSERR, "FAIL: pmc_stop %s", counterset[i]);
+			xo_err(EX_OSERR, "FAIL: pmc_stop %s", counterset[i]);
 	}
 }
 
@@ -401,13 +406,13 @@ static void
 usage(void)
 {
 
-	fprintf(stderr,
+	xo_error(
 	    "%s [-Bqsv] [-b buffersize] [-i pipe|local|tcp] [-p tcp_port]\n\t"
 #ifdef WITH_PMC
 	    "[-P l1d|l1i|l2|mem|tlb|bus] "
 #endif
 	    "[-t totalsize] mode\n", PROGNAME);
-	fprintf(stderr,
+	xo_error(
   "\n"
   "Modes (pick one - default %s):\n"
   "    1thread                IPC within a single thread\n"
@@ -468,7 +473,7 @@ sender(struct sender_argument *sap)
 	long write_sofar;
 
 	if (clock_gettime(CLOCK_REALTIME, &sap->sa_starttime) < 0)
-		err(EX_OSERR, "FAIL: clock_gettime");
+		xo_err(EX_OSERR, "FAIL: clock_gettime");
 #ifdef WITH_PMC
 	if (benchmark_pmc != BENCHMARK_PMC_NONE)
 		pmc_begin();
@@ -484,10 +489,11 @@ sender(struct sender_argument *sap)
 		    min(buffersize, totalsize - write_sofar));
 		/*printf("write(%d, %zd, %zd) = %zd\n", sap->sa_writefd, 0, bytes_to_write, len);*/
 		if (len != bytes_to_write) {
-			errx(EX_IOERR, "blocking write() returned early: %zd != %zd", len, bytes_to_write);
+			xo_errx(EX_IOERR, "blocking write() returned early: "
+			    "%zd != %zd", len, bytes_to_write);
 		}
 		if (len < 0)
-			err(EX_IOERR, "FAIL: write");
+			xo_err(EX_IOERR, "FAIL: write");
 		write_sofar += len;
 	}
 }
@@ -511,7 +517,7 @@ receiver(int readfd, long blockcount, void *buf)
 			warn("blocking read returned early: %zd != %zd", len, bytes_to_read);
 		} */
 		if (len < 0)
-			err(EX_IOERR, "FAIL: read");
+			xo_err(EX_IOERR, "FAIL: read");
 		read_sofar += len;
 	}
 
@@ -523,7 +529,7 @@ receiver(int readfd, long blockcount, void *buf)
 		pmc_end();
 #endif
 	if (clock_gettime(CLOCK_REALTIME, &finishtime) < 0)
-		err(EX_OSERR, "FAIL: clock_gettime");
+		xo_err(EX_OSERR, "FAIL: clock_gettime");
 	return (finishtime);
 }
 
@@ -559,10 +565,10 @@ do_2thread(int readfd, int writefd, long blockcount, void *readbuf,
 	sa.sa_blockcount = blockcount;
 	sa.sa_buffer = writebuf;
 	if (pthread_create(&thread, NULL, second_thread, &sa) < 0)
-		err(EX_OSERR, "FAIL: pthread_create");
+		xo_err(EX_OSERR, "FAIL: pthread_create");
 	finishtime = receiver(readfd, blockcount, readbuf);
 	if (pthread_join(thread, NULL) < 0)
-		err(EX_OSERR, "FAIL: pthread_join");
+		xo_err(EX_OSERR, "FAIL: pthread_join");
 	timespecsub(&finishtime, &sa.sa_starttime, &finishtime);
 	return (finishtime);
 }
@@ -582,9 +588,9 @@ do_2proc(int readfd, int writefd, long blockcount, void *readbuf,
 	 */
 	if ((sap = mmap(NULL, getpagesize(), PROT_READ | PROT_WRITE, MAP_ANON,
 	    -1, 0)) == MAP_FAILED)
-		err(EX_OSERR, "mmap");
+		xo_err(EX_OSERR, "mmap");
 	if (minherit(sap, getpagesize(), INHERIT_SHARE) < 0)
-		err(EX_OSERR, "minherit");
+		xo_err(EX_OSERR, "minherit");
 	sap->sa_writefd = writefd;
 	sap->sa_blockcount = blockcount;
 	sap->sa_buffer = writebuf;
@@ -599,9 +605,9 @@ do_2proc(int readfd, int writefd, long blockcount, void *readbuf,
 	}
 	finishtime = receiver(readfd, blockcount, readbuf);
 	if ((pid2 = waitpid(pid, NULL, 0)) < 0)
-		err(EX_OSERR, "FAIL: waitpid");
+		xo_err(EX_OSERR, "FAIL: waitpid");
 	if (pid2 != pid)
-		err(EX_OSERR, "FAIL: waitpid PID mismatch");
+		xo_err(EX_OSERR, "FAIL: waitpid PID mismatch");
 	timespecsub(&finishtime, &sap->sa_starttime, &finishtime);
 	return (finishtime);
 }
@@ -629,15 +635,15 @@ do_1thread(int readfd, int writefd, long blockcount, void *readbuf,
 
 	flags = fcntl(readfd, F_GETFL, 0);
 	if (flags < 0)
-		err(EX_OSERR, "FAIL: fcntl(readfd, F_GETFL, 0)");
+		xo_err(EX_OSERR, "FAIL: fcntl(readfd, F_GETFL, 0)");
 	if (fcntl(readfd, F_SETFL, flags | O_NONBLOCK) < 0)
-		err(EX_OSERR, "FAIL: fcntl(readfd, F_SETFL, "
+		xo_err(EX_OSERR, "FAIL: fcntl(readfd, F_SETFL, "
 		    "flags | O_NONBLOCK)");
 	flags = fcntl(writefd, F_GETFL, 0);
 	if (flags < 0)
-		err(EX_OSERR, "FAIL: fcntl(writefd, F_GETFL, 0)");
+		xo_err(EX_OSERR, "FAIL: fcntl(writefd, F_GETFL, 0)");
 	if (fcntl(writefd, F_SETFL, flags | O_NONBLOCK) < 0)
-		err(EX_OSERR, "FAIL: fcntl(writefd, F_SETFL, "
+		xo_err(EX_OSERR, "FAIL: fcntl(writefd, F_SETFL, "
 		    "flags | O_NONBLOCK)");
 
 	FD_ZERO(&fdset_read);
@@ -646,7 +652,7 @@ do_1thread(int readfd, int writefd, long blockcount, void *readbuf,
 	FD_SET(writefd, &fdset_write);
 
 	if (clock_gettime(CLOCK_REALTIME, &starttime) < 0)
-		err(EX_OSERR, "FAIL: clock_gettime");
+		xo_err(EX_OSERR, "FAIL: clock_gettime");
 #ifdef WITH_PMC
 	if (benchmark_pmc != BENCHMARK_PMC_NONE)
 		pmc_begin();
@@ -668,7 +674,7 @@ do_1thread(int readfd, int writefd, long blockcount, void *readbuf,
 			len_write = write(writefd, writebuf + offset, bytes_to_write);
 			/*printf("write(%d, %zd, %zd) = %zd\n", writefd, offset, bytes_to_write, len_write);*/
 			if (len_write < 0 && errno != EAGAIN)
-				err(EX_IOERR, "FAIL: write");
+				xo_err(EX_IOERR, "FAIL: write");
 			if (len_write > 0)
 				write_sofar += len_write;
 		}
@@ -678,7 +684,7 @@ do_1thread(int readfd, int writefd, long blockcount, void *readbuf,
 			len_read = read(readfd, readbuf + offset, bytes_to_read);
 			/*printf("read(%d, %zd, %zd) = %zd\n", readfd, offset, bytes_to_read, len_read);*/
 			if (len_read < 0 && errno != EAGAIN)
-				err(EX_IOERR, "FAIL: read");
+				xo_err(EX_IOERR, "FAIL: read");
 			if (len_read > 0)
 				read_sofar += len_read;
 		}
@@ -692,7 +698,7 @@ do_1thread(int readfd, int writefd, long blockcount, void *readbuf,
 		    (len_read == 0 && len_write == 0)) {
 			if (select(max(readfd, writefd), &fdset_read,
 			    &fdset_write, NULL, NULL) < 0)
-				err(EX_IOERR, "FAIL: select");
+				xo_err(EX_IOERR, "FAIL: select");
 		}
 	}
 
@@ -704,7 +710,7 @@ do_1thread(int readfd, int writefd, long blockcount, void *readbuf,
 		pmc_end();
 #endif
 	if (clock_gettime(CLOCK_REALTIME, &finishtime) < 0)
-		err(EX_OSERR, "FAIL: clock_gettime");
+		xo_err(EX_OSERR, "FAIL: clock_gettime");
 	timespecsub(&finishtime, &starttime, &finishtime);
 	return (finishtime);
 }
@@ -723,11 +729,11 @@ ipc(void)
 #endif
 
 	if (totalsize % buffersize != 0)
-		errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple of "
-		    "buffersize (%ld)", totalsize, buffersize);
+		xo_errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple "
+		    "of buffersize (%ld)", totalsize, buffersize);
 	blockcount = totalsize / buffersize;
 	if (blockcount < 0)
-		errx(EX_USAGE, "FAIL: negative block count");
+		xo_errx(EX_USAGE, "FAIL: negative block count");
 
 	/*
 	 * Allocate zero-filled memory for our I/O buffer.
@@ -736,10 +742,10 @@ ipc(void)
 	 */
 	readbuf = calloc(buffersize, 1);
 	if (readbuf == NULL)
-		err(EX_OSERR, "FAIL: calloc");
+		xo_err(EX_OSERR, "FAIL: calloc");
 	writebuf = calloc(buffersize, 2);
 	if (writebuf == NULL)
-		err(EX_OSERR, "FAIL: calloc");
+		xo_err(EX_OSERR, "FAIL: calloc");
 
 #ifdef WITH_PMC
 	/*
@@ -755,7 +761,7 @@ ipc(void)
 	switch (ipc_type) {
 	case BENCHMARK_IPC_PIPE:
 		if (pipe(fd) < 0)
-			err(EX_OSERR, "FAIL: pipe");
+			xo_err(EX_OSERR, "FAIL: pipe");
 
 		/*
 		 * On FreeBSD, it doesn't matter which end of the pipe we use,
@@ -769,7 +775,7 @@ ipc(void)
 
 	case BENCHMARK_IPC_LOCAL_SOCKET:
 		if (socketpair(PF_LOCAL, SOCK_STREAM, 0, fd) < 0)
-			err(EX_OSERR, "FAIL: socketpair");
+			xo_err(EX_OSERR, "FAIL: socketpair");
 
 		/*
 		 * With socket pairs, it makes no difference which one we use
@@ -782,7 +788,7 @@ ipc(void)
 	case BENCHMARK_IPC_TCP_SOCKET:
 		listenfd = socket(PF_INET, SOCK_STREAM, 0);
 		if (listenfd < 0)
-			err(EX_OSERR, "FAIL: socket (listen)");
+			xo_err(EX_OSERR, "FAIL: socket (listen)");
 
 		/*
 		 * Socket address used for both binding and connecting.
@@ -790,16 +796,16 @@ ipc(void)
 		i = 1;
 		if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &i,
 		    sizeof(i)) < 0)
-			err(EX_OSERR, "FAIL: setsockopt SO_REUSEADDR");
+			xo_err(EX_OSERR, "FAIL: setsockopt SO_REUSEADDR");
 		bzero(&sin, sizeof(sin));
 		sin.sin_len = sizeof(sin);
 		sin.sin_family = AF_INET;
 		sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 		sin.sin_port = htons(tcp_port);
 		if (bind(listenfd, (struct sockaddr *)&sin, sizeof(sin)) < 0)
-			err(EX_OSERR, "FAIL: bind");
+			xo_err(EX_OSERR, "FAIL: bind");
 		if (listen(listenfd, -1) < 0)
-			err(EX_OSERR, "FAIL: listen");
+			xo_err(EX_OSERR, "FAIL: listen");
 
 		/*
 		 * Create the 'read' endpoint and connect it to the listen
@@ -815,17 +821,17 @@ ipc(void)
 		 */
 		readfd = socket(PF_INET, SOCK_STREAM, 0);
 		if (readfd < 0)
-			err(EX_OSERR, "FAIL: socket (read)");
+			xo_err(EX_OSERR, "FAIL: socket (read)");
 		flags = fcntl(readfd, F_GETFL, 0);
 		if (flags < 0)
-			err(EX_OSERR, "FAIL: fcntl(readfd, F_GETFL, 0)");
+			xo_err(EX_OSERR, "FAIL: fcntl(readfd, F_GETFL, 0)");
 		if (fcntl(readfd, F_SETFL, flags | O_NONBLOCK) < 0)
-			err(EX_OSERR, "FAIL: fcntl(readfd, F_SETFL, "
+			xo_err(EX_OSERR, "FAIL: fcntl(readfd, F_SETFL, "
 			    "flags | O_NONBLOCK)");
 		error = connect(readfd, (struct sockaddr *)&sin,
 		    sizeof(sin));
 		if (error < 0 && errno != EINPROGRESS)
-			err(EX_OSERR, "FAIL: connect");
+			xo_err(EX_OSERR, "FAIL: connect");
 
 		/*
 		 * On the listen socket, now accept the 'write' endpoint --
@@ -834,7 +840,7 @@ ipc(void)
 		 */
 		writefd = accept(listenfd, NULL, NULL);
 		if (writefd < 0)
-			err(EX_OSERR, "accept");
+			xo_err(EX_OSERR, "accept");
 
 		/*
 		 * Restore blocking status to the 'read' endpoint, and close
@@ -843,7 +849,8 @@ ipc(void)
 		 * although in practice that is unlikely.
 		 */
 		if (fcntl(readfd, F_SETFL, flags) < 0)
-			err(EX_OSERR, "FAIL: fcntl(readfd, F_SETFL, flags");
+			xo_err(EX_OSERR, "FAIL: fcntl(readfd, F_SETFL, "
+			    "flags");
 		close(listenfd);
 		break;
 
@@ -864,10 +871,12 @@ ipc(void)
 			sockoptval = buffersize;
 			if (setsockopt(writefd, SOL_SOCKET, SO_SNDBUF,
 			    &sockoptval, sizeof(sockoptval)) < 0)
-				err(EX_OSERR, "FAIL: setsockopt SO_SNDBUF");
+				xo_err(EX_OSERR, "FAIL: setsockopt "
+				    "SO_SNDBUF");
 			if (setsockopt(readfd, SOL_SOCKET, SO_RCVBUF,
 			    &sockoptval, sizeof(sockoptval)) < 0)
-				err(EX_OSERR, "FAIL: setsockopt SO_RCVBUF");
+				xo_err(EX_OSERR, "FAIL: setsockopt "
+				    "SO_RCVBUF");
 		}
 	}
 
@@ -923,61 +932,35 @@ ipc(void)
 	 * Now we can disruptively print things -- if we're not in quiet mode.
 	 */
 	if (!qflag) {
+		/*
+		 * Configuration information first, if requested.
+		 */
 		if (vflag) {
-			printf("Benchmark configuration:\n");
-			printf("  buffersize: %ld\n", buffersize);
-			printf("  totalsize: %ld\n", totalsize);
-			printf("  blockcount: %ld\n", blockcount);
-			printf("  mode: %s\n",
+			xo_open_container("benchmark_configuration");
+			xo_emit("Benchmark configuration:\n");
+			xo_emit("  buffersize: {:buffersize/%ld}\n",
+			    buffersize);
+			xo_emit("  totalsize: {:totalsize/%ld}\n",
+			    totalsize);
+			xo_emit("  blockcount: {:blockcount/%ld}\n",
+			    blockcount);
+			xo_emit("  mode: {:mode/%s}\n",
 			    benchmark_mode_to_string(benchmark_mode));
-			printf("  ipctype: %s\n",
+			xo_emit("  ipctype: {:ipctype/%s}\n",
 			    ipc_type_to_string(ipc_type));
-			printf("  time: %jd.%09jd\n", (intmax_t)ts.tv_sec,
-			    (intmax_t)ts.tv_nsec);
-		}
-
-#ifdef WITH_PMC
-		if (benchmark_pmc != BENCHMARK_PMC_NONE) {
-			clock_cycles =
-			    pmc_values[COUNTERSET_TRAILER_CLOCK_CYCLES];
-			instr_executed =
-			    pmc_values[COUNTERSET_TRAILER_INSTR_EXECUTED];
-
-			printf("\n");
-			printf("  pmctype: %s\n",
+			xo_emit("  pmctype: {:pmctype/%s}\n",
 			    benchmark_pmc_to_string(benchmark_pmc));
-			printf("  INSTR_EXECUTED: %ju\n",
-			    (uintmax_t)instr_executed);
-			printf("  CLOCK_CYCLES: %ju\n", clock_cycles);
-			printf("  CLOCK_CYCLES/INSTR_EXECUTED: %F\n",
-			    (float)clock_cycles/instr_executed);
-
-			/* Mode-specific counters. */
-			if (counterset[0] != NULL) {
-				counter0 = pmc_values[0];
-				printf("  %s: %ju\n", counterset[0],
-				    counter0);
-				printf("  %s/INSTR_EXECUTED: %F\n",
-				    counterset[0],
-				    (float)counter0/instr_executed);
-				printf("  %s/CLOCK_CYCLES: %F\n",
-				    counterset[0],
-				    (float)counter0/clock_cycles);
-			}
-			if (counterset[1] != NULL) {
-				counter1 = pmc_values[1];
-				printf("  %s: %ju\n", counterset[1],
-				    counter1);
-				printf("  %s/INSTR_EXECUTED: %F\n",
-				    counterset[1],
-				    (float)counter1/instr_executed);
-				printf("  %s/CLOCK_CYCLES: %F\n",
-				    counterset[1],
-				    (float)counter1/clock_cycles);
-			}
-			printf("\n");
+			xo_close_container("benchmark_configuration");
 		}
-#endif
+
+		xo_open_list("benchmark_samples");
+		xo_open_instance("datum");
+		xo_emit("datum:\n");
+		if (vflag) {
+			/* XXXRW: Ideally would print as a float? */
+			xo_emit("  time: {:time/%jd.%09jd} seconds\n",
+			    (intmax_t)ts.tv_sec, (intmax_t)ts.tv_nsec);
+		}
 
 		/* Seconds with fractional component. */
 		secs = (float)ts.tv_sec + (float)ts.tv_nsec / 1000000000;
@@ -988,7 +971,64 @@ ipc(void)
 		/* Kilobytes/second. */
 		rate /= (1024);
 
-		printf("%.2F KBytes/sec\n", rate);
+		xo_emit("  bandwidth: {:bandwidth/%1.2F} KBytes/sec\n", rate);
+
+#ifdef WITH_PMC
+		if (benchmark_pmc != BENCHMARK_PMC_NONE) {
+			clock_cycles =
+			    pmc_values[COUNTERSET_TRAILER_CLOCK_CYCLES];
+			instr_executed =
+			    pmc_values[COUNTERSET_TRAILER_INSTR_EXECUTED];
+
+			xo_emit("  INSTR_EXECUTED: {:instr_executed/%ju}\n",
+			    (uintmax_t)instr_executed);
+			xo_emit("  CLOCK_CYCLES: {:clock_cycles/%ju}\n",
+			    clock_cycles);
+			xo_emit("  CLOCK_CYCLES/INSTR_EXECUTED: "
+			    "{:cycles_per_instruction/%F}\n",
+			    (float)clock_cycles/instr_executed);
+
+			/* Mode-specific counters. */
+			if (counterset[0] != NULL) {
+				counter0 = pmc_values[0];
+				xo_emit("  {:counter0_name/%s}: "
+				    "{:counter0_value/%ju}\n", counterset[0],
+				    counter0);
+				xo_emit("  ");
+				xo_emit(counterset[0]);
+				xo_emit("/INSTR_EXECUTED: "
+				    "{:counter0_per_instruction/%F}\n",
+				    (float)counter0/instr_executed);
+				xo_emit("  ");
+				xo_emit(counterset[0]);
+				xo_emit("/CLOCK_CYCLES: "
+				    "{:counter0_per_cycle/%F}\n",
+				    (float)counter0/clock_cycles);
+			}
+			if (counterset[1] != NULL) {
+				counter1 = pmc_values[1];
+				xo_emit("  {:counter1_name/%s}: "
+				    "{:counter1_value/%ju}\n", counterset[1],
+				    counter1);
+				xo_emit("  ");
+				xo_emit(counterset[1]);
+				xo_emit("/INSTR_EXECUTED: "
+				    "{:counter1_per_instruction/%F}\n",
+				    counterset[1],
+				    (float)counter1/instr_executed);
+				xo_emit("  ");
+				xo_emit(counterset[1]);
+				xo_emit("/CLOCK_CYCLES: "
+				    "{:counter1_per_cycle/%F}\n",
+				    counterset[1],
+				    (float)counter1/clock_cycles);
+			}
+		}
+#endif
+
+		xo_close_instance("datum");
+		xo_close_container("benchmark_samples");
+		xo_finish();
 	}
 	close(readfd);
 	close(writefd);
@@ -1007,6 +1047,10 @@ main(int argc, char *argv[])
 	char *endp;
 	long l;
 	int ch;
+
+	argc = xo_parse_args(argc, argv);
+	if (argc < 0)
+		exit(EX_USAGE);
 
 	buffersize = BUFFERSIZE;
 	totalsize = TOTALSIZE;
