@@ -407,7 +407,7 @@ usage(void)
 {
 
 	xo_error(
-	    "%s [-Bqsv] [-b buffersize] [-i pipe|local|tcp] [-p tcp_port]\n\t"
+	    "%s [-Bjqsv] [-b buffersize] [-i pipe|local|tcp] [-p tcp_port]\n\t"
 #ifdef WITH_PMC
 	    "[-P l1d|l1i|l2|mem|tlb|bus] "
 #endif
@@ -422,6 +422,7 @@ usage(void)
   "Optional flags:\n"
   "    -B                     Run in bare mode: no preparatory activities\n"
   "    -i pipe|local|tcp      Select pipe, local sockets, or TCP (default: %s)\n"
+  "    -j                     Output as JSON\n"
   "    -p tcp_port            Set TCP port number (default: %u)\n"
 #ifdef WITH_PMC
   "    -P l1d|l1i|l2|mem|tlb|bus  Enable hardware performance counters\n"
@@ -1054,7 +1055,7 @@ main(int argc, char *argv[])
 
 	buffersize = BUFFERSIZE;
 	totalsize = TOTALSIZE;
-	while ((ch = getopt(argc, argv, "Bb:i:p:P:qst:v"
+	while ((ch = getopt(argc, argv, "Bb:i:jp:P:qst:v"
 #ifdef WITH_PMC
 	"P:"
 #endif
@@ -1074,6 +1075,11 @@ main(int argc, char *argv[])
 			ipc_type = ipc_type_from_string(optarg);
 			if (ipc_type == BENCHMARK_IPC_INVALID)
 				usage();
+			break;
+
+		case 'j':
+			xo_set_style(NULL, XO_STYLE_JSON);
+			xo_set_flags(NULL, XOF_PRETTY);
 			break;
 
 		case 'p':

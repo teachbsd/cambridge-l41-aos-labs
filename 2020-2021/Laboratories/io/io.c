@@ -65,7 +65,7 @@ static void
 usage(void)
 {
 
-	xo_error("usage: io %s -c|-r|-w [-Bdqsv] [-b buffersize] "
+	xo_error("usage: io %s -c|-r|-w [-Bdjqsv] [-b buffersize] "
 	    "[-t totalsize] path\n", PROGNAME);
 	xo_error("\n"
   "Modes (pick one):\n"
@@ -76,6 +76,7 @@ usage(void)
   "Optional flags:\n"
   "    -B              Run in bare mode: no preparatory activities\n"
   "    -d              Set O_DIRECT flag to bypass buffer cache\n"
+  "    -j              Output as JSON\n"
   "    -q              Just run the benchmark, don't print stuff out\n"
   "    -s              Call fsync() on the file descriptor when complete\n"
   "    -v              Provide a verbose benchmark description\n"
@@ -264,7 +265,7 @@ main(int argc, char *argv[])
 	buffersize = BLOCKSIZE;
 	totalsize = TOTALSIZE;
 	path = NULL;
-	while ((ch = getopt(argc, argv, "Bb:cdqrst:vw")) != -1) {
+	while ((ch = getopt(argc, argv, "Bb:cdjqrst:vw")) != -1) {
 		switch (ch) {
 		case 'B':
 			Bflag++;
@@ -282,6 +283,11 @@ main(int argc, char *argv[])
 
 		case 'd':
 			dflag++;
+			break;
+
+		case 'j':
+			xo_set_style(NULL, XO_STYLE_JSON);
+			xo_set_flags(NULL, XOF_PRETTY);
 			break;
 
 		case 'q':
