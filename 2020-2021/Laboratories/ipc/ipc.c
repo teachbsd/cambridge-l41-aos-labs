@@ -98,6 +98,9 @@ static unsigned short tcp_port = BENCHMARK_TCP_PORT_DEFAULT;
 #define	BUFFERSIZE	(128 * 1024UL)
 static long buffersize = BUFFERSIZE;	/* I/O buffer size */
 
+#define	ITERATIONS	(1)
+static long iterations = ITERATIONS;	/* Number of iterations */
+
 #define	TOTALSIZE	(16 * 1024 * 1024UL)
 static long totalsize = TOTALSIZE;	/* total I/O size */
 
@@ -176,7 +179,7 @@ static uint64_t pmc_values[COUNTERSET_MAX_EVENTS];
 static const char **counterset;		/* The actual counter set in use. */
 
 static void
-pmc_setup(void)
+pmc_setup_run(void)
 {
 	int i;
 
@@ -217,8 +220,6 @@ pmc_setup(void)
 	 * i.e., to properly account for child behaviour in 2proc.
 	 */
 	bzero(pmc_values, sizeof(pmc_values));
-	if (pmc_init() < 0)
-		xo_err(EX_OSERR, "FAIL: pmc_init");
 	for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
 		if (counterset[i] == NULL)
 			continue;
@@ -236,7 +237,7 @@ pmc_setup(void)
 }
 
 static void
-pmc_teardown(void)
+pmc_teardown_run(void)
 {
 	int i;
 
@@ -407,13 +408,13 @@ usage(void)
 {
 
 	xo_error(
-	    "%s [-Bjqsv] [-b buffersize] [-i pipe|local|tcp] [-p tcp_port]\n\t"
+	    "%s [-Bjqsv] [-b buffersize] [-i pipe|local|tcp] [-n iterations]\n"
+	    "    [-p tcp_port]"
 #ifdef WITH_PMC
-	    "[-P l1d|l1i|l2|mem|tlb|bus] "
+	    " [-P l1d|l1i|l2|mem|tlb|bus] "
 #endif
-	    "[-t totalsize] mode\n", PROGNAME);
-	xo_error(
-  "\n"
+	    " [-t totalsize] mode\n", PROGNAME);
+	xo_error("\n"
   "Modes (pick one - default %s):\n"
   "    1thread                IPC within a single thread\n"
   "    2thread                IPC between two threads in one process\n"
@@ -430,12 +431,14 @@ usage(void)
   "    -q                     Just run the benchmark, don't print stuff out\n"
   "    -s                     Set send/receive socket-buffer sizes to buffersize\n"
   "    -v                     Provide a verbose benchmark description\n"
-  "    -b buffersize          Specify a buffer size (default: %ld)\n"
-  "    -t totalsize           Specify total I/O size (default: %ld)\n",
+  "    -b buffersize          Specify the buffer size (default: %ld)\n"
+  "    -n iterations          Specify the number of times to run (default: %ld)\n"
+  "    -t totalsize           Specify the total I/O size (default: %ld)\n",
 	    benchmark_mode_to_string(BENCHMARK_MODE_DEFAULT),
 	    ipc_type_to_string(BENCHMARK_IPC_DEFAULT),
 	    BENCHMARK_TCP_PORT_DEFAULT,
-	    BUFFERSIZE, TOTALSIZE);
+	    BUFFERSIZE, ITERATIONS, TOTALSIZE);
+	xo_finish();
 	exit(EX_USAGE);
 }
 
@@ -716,45 +719,16 @@ do_1thread(int readfd, int writefd, long blockcount, void *readbuf,
 	return (finishtime);
 }
 
+/*
+ * Allocate, configure, as needed connect, and return a pair of IPC object
+ * handle via *readfdp and *writefdp.
+ */
 static void
-ipc(void)
+ipc_objects_allocate(int *readfdp, int *writefdp)
 {
 	struct sockaddr_in sin;
-	struct timespec ts;
-	long blockcount;
-	void *readbuf, *writebuf;
-	int error, fd[2], flags, i, listenfd, readfd, writefd, sockoptval;
-	double secs, rate;
-#ifdef WITH_PMC
-	uint64_t clock_cycles, instr_executed, counter0, counter1;
-#endif
-
-	if (totalsize % buffersize != 0)
-		xo_errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple "
-		    "of buffersize (%ld)", totalsize, buffersize);
-	blockcount = totalsize / buffersize;
-	if (blockcount < 0)
-		xo_errx(EX_USAGE, "FAIL: negative block count");
-
-	/*
-	 * Allocate zero-filled memory for our I/O buffer.
-	 *
-	 * XXXRW: Use mmap() rather than calloc()?  Touch each page?
-	 */
-	readbuf = calloc(buffersize, 1);
-	if (readbuf == NULL)
-		xo_err(EX_OSERR, "FAIL: calloc");
-	writebuf = calloc(buffersize, 2);
-	if (writebuf == NULL)
-		xo_err(EX_OSERR, "FAIL: calloc");
-
-#ifdef WITH_PMC
-	/*
-	 * Allocate and initialise performance counters, if required.
-	 */
-	if (benchmark_pmc != BENCHMARK_PMC_NONE)
-		pmc_setup();
-#endif
+	int fd[2], listenfd, readfd, writefd, sockoptval;
+	int error, flags, i;
 
 	/*
 	 * Allocate a suitable IPC object.
@@ -765,10 +739,11 @@ ipc(void)
 			xo_err(EX_OSERR, "FAIL: pipe");
 
 		/*
-		 * On FreeBSD, it doesn't matter which end of the pipe we use,
-		 * but on other operating systems, it is sometimes the case
-		 * that the first file descriptor must be used for reading,
-		 * and the second for writing.
+		 * On FreeBSD, it doesn't matter which end of the pipe
+		 * we use, but on other operating systems, it is
+		 * sometimes the case that the first file descriptor
+		 * must be used for reading, and the second for
+		 * writing.
 		 */
 		readfd = fd[0];
 		writefd = fd[1];
@@ -779,11 +754,11 @@ ipc(void)
 			xo_err(EX_OSERR, "FAIL: socketpair");
 
 		/*
-		 * With socket pairs, it makes no difference which one we use
-		 * for reading or writing.
+		 * With socket pairs, it makes no difference which one
+		 * we use for reading or writing.
 		 */
 		readfd = fd[0];
-		writefd = fd[1];
+			writefd = fd[1];
 		break;
 
 	case BENCHMARK_IPC_TCP_SOCKET:
@@ -880,87 +855,134 @@ ipc(void)
 				    "SO_RCVBUF");
 		}
 	}
+	*readfdp = readfd;
+	*writefdp = writefd;
+}
+
+static void
+ipc(void)
+{
+	struct timespec ts;
+	long blockcount;
+	void *readbuf, *writebuf;
+	int iteration, readfd, writefd;
+	double secs, rate;
+#ifdef WITH_PMC
+	uint64_t clock_cycles, instr_executed, counter0, counter1;
+#endif
+
+	if (totalsize % buffersize != 0)
+		xo_errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple "
+		    "of buffersize (%ld)", totalsize, buffersize);
+	blockcount = totalsize / buffersize;
+	if (blockcount < 0)
+		xo_errx(EX_USAGE, "FAIL: negative block count");
+
+#ifdef WITH_PMC
+	/*
+	 * Set up the PMC library -- things done only once.
+	 */
+	if (pmc_init() < 0)
+		xo_err(EX_OSERR, "FAIL: pmc_init");
+#endif
 
 	/*
-	 * Before we start, sync() the filesystem so that it is fairly
-	 * quiesced from prior work.  Give things a second to settle down.
+	 * Configuration information first, if requested.
 	 */
-	if (!Bflag) {
-		/* Flush terminal output. */
-		fflush(stdout);
-		fflush(stderr);
-
-		/* Flush filesystems as a whole. */
-		(void)sync();
-		(void)sync();
-		(void)sync();
-
+	if (!qflag && vflag) {
+		xo_open_container("benchmark_configuration");
+		xo_emit("Benchmark configuration:\n");
+		xo_emit("  buffersize: {:buffersize/%ld}\n", buffersize);
+		xo_emit("  totalsize: {:totalsize/%ld}\n", totalsize);
+		xo_emit("  blockcount: {:blockcount/%ld}\n", blockcount);
+		xo_emit("  mode: {:mode/%s}\n",
+		    benchmark_mode_to_string(benchmark_mode));
+		xo_emit("  ipctype: {:ipctype/%s}\n",
+		    ipc_type_to_string(ipc_type));
+		xo_emit("  pmctype: {:pmctype/%s}\n",
+		    benchmark_pmc_to_string(benchmark_pmc));
+		xo_close_container("benchmark_configuration");
+		xo_flush();
+	}
+	if (!qflag)
+		xo_open_list("benchmark_samples");
+	for (iteration = 0; iteration < iterations; iteration++) {
+#ifdef WITH_PMC
 		/*
-		 * Let things settle.
+		 * Allocate and initialise performance counters, if required.
+		 * Things done once per iteration.
+		 */
+		if (benchmark_pmc != BENCHMARK_PMC_NONE)
+			pmc_setup_run();
+#endif
+		/*
+		 * Allocate zero-filled memory for our I/O buffer.
 		 *
-		 * NB: This will have the side effect of aliasing execution
-		 * to the timer.  Unclear if this is a good thing.
+		 * XXXRW: Use mmap() rather than calloc()?  Touch each page?
 		 */
-		(void)sleep(1);
-	}
+		readbuf = calloc(buffersize, 1);
+		if (readbuf == NULL)
+			xo_err(EX_OSERR, "FAIL: calloc");
+		writebuf = calloc(buffersize, 2);
+		if (writebuf == NULL)
+			xo_err(EX_OSERR, "FAIL: calloc");
 
-	/*
-	 * Perform the actual benchmark; timing is done within different
-	 * versions as they behave quite differently.  Each returns the total
-	 * execution time from just before first byte sent to just after last
-	 * byte received.
-	 */
-	switch (benchmark_mode) {
-	case BENCHMARK_MODE_1THREAD:
-		ts = do_1thread(readfd, writefd, blockcount, readbuf,
-		    writebuf);
-		break;
-
-	case BENCHMARK_MODE_2THREAD:
-		ts = do_2thread(readfd, writefd, blockcount, readbuf,
-		    writebuf);
-		break;
-
-	case BENCHMARK_MODE_2PROC:
-		ts = do_2proc(readfd, writefd, blockcount, readbuf, writebuf);
-		break;
-
-	default:
-		assert(0);
-	}
-
-	/*
-	 * Now we can disruptively print things -- if we're not in quiet mode.
-	 */
-	if (!qflag) {
 		/*
-		 * Configuration information first, if requested.
+		 * Allocate and connect a suitable IPC object handle pair.
 		 */
-		if (vflag) {
-			xo_open_container("benchmark_configuration");
-			xo_emit("Benchmark configuration:\n");
-			xo_emit("  buffersize: {:buffersize/%ld}\n",
-			    buffersize);
-			xo_emit("  totalsize: {:totalsize/%ld}\n",
-			    totalsize);
-			xo_emit("  blockcount: {:blockcount/%ld}\n",
-			    blockcount);
-			xo_emit("  mode: {:mode/%s}\n",
-			    benchmark_mode_to_string(benchmark_mode));
-			xo_emit("  ipctype: {:ipctype/%s}\n",
-			    ipc_type_to_string(ipc_type));
-			xo_emit("  pmctype: {:pmctype/%s}\n",
-			    benchmark_pmc_to_string(benchmark_pmc));
-			xo_close_container("benchmark_configuration");
+		ipc_objects_allocate(&readfd, &writefd);
+
+		/*
+		 * Before we start, sync() the filesystem so that it is fairly
+		 * quiesced from prior work.  Give things a second to settle
+		 * down.
+		 */
+		if (!Bflag) {
+			/* Flush terminal output. */
+			fflush(stdout);
+			fflush(stderr);
+
+			/* Flush filesystems as a whole. */
+			(void)sync();
+			(void)sync();
+			(void)sync();
+
+			/*
+			 * Let things settle.
+			 *
+			 * NB: This will have the side effect of aliasing
+			 * execution to the timer.  Unclear if this is a good
+			 * thing.
+			 */
+			(void)sleep(1);
 		}
 
-		xo_open_list("benchmark_samples");
-		xo_open_instance("datum");
-		xo_emit("datum:\n");
-		if (vflag) {
-			/* XXXRW: Ideally would print as a float? */
-			xo_emit("  time: {:time/%jd.%09jd} seconds\n",
-			    (intmax_t)ts.tv_sec, (intmax_t)ts.tv_nsec);
+		/*
+		 * Perform the actual benchmark; timing is done within
+		 * different versions as they behave quite differently.  Each
+		 * returns the total execution time from just before first
+		 * byte sent to just after last byte received.  All must clean
+		 * up pretty carefully so as to minimise the impact on future
+		 * benchmark runs.
+		 */
+		switch (benchmark_mode) {
+		case BENCHMARK_MODE_1THREAD:
+			ts = do_1thread(readfd, writefd, blockcount, readbuf,
+			    writebuf);
+			break;
+
+		case BENCHMARK_MODE_2THREAD:
+			ts = do_2thread(readfd, writefd, blockcount, readbuf,
+			    writebuf);
+			break;
+
+		case BENCHMARK_MODE_2PROC:
+			ts = do_2proc(readfd, writefd, blockcount, readbuf,
+			    writebuf);
+			break;
+
+		default:
+			assert(0);
 		}
 
 		/* Seconds with fractional component. */
@@ -972,10 +994,21 @@ ipc(void)
 		/* Kilobytes/second. */
 		rate /= (1024);
 
-		xo_emit("  bandwidth: {:bandwidth/%1.2F} KBytes/sec\n", rate);
-
+		/*
+		 * Now we can disruptively print things -- if we're not in
+		 * quiet mode.
+		 */
+		if (!qflag) {
+			xo_open_instance("datum");
+			xo_emit("datum:\n");
+			xo_emit("  bandwidth: {:bandwidth/%1.2F} KBytes/sec\n",
+			    rate);
+			/* XXXRW: Ideally would print as a float? */
+			xo_emit("  time: {:time/%jd.%09jd} seconds\n",
+			    (intmax_t)ts.tv_sec, (intmax_t)ts.tv_nsec);
+		}
 #ifdef WITH_PMC
-		if (benchmark_pmc != BENCHMARK_PMC_NONE) {
+		if (!qflag && (benchmark_pmc != BENCHMARK_PMC_NONE)) {
 			clock_cycles =
 			    pmc_values[COUNTERSET_TRAILER_CLOCK_CYCLES];
 			instr_executed =
@@ -1026,17 +1059,27 @@ ipc(void)
 			}
 		}
 #endif
+		if (!qflag) {
+			xo_close_instance("datum");
+			xo_flush();
+		}
 
-		xo_close_instance("datum");
-		xo_close_container("benchmark_samples");
+		/*
+		 * Just a little cleaning up between runs.
+		 */
+#ifdef WITH_PMC
+		if (benchmark_pmc != BENCHMARK_PMC_NONE)
+			pmc_teardown_run();
+#endif
+		close(readfd);
+		close(writefd);
+		free(readbuf);
+		free(writebuf);
+	}
+	if (!qflag) {
+		xo_close_list("benchmark_samples");
 		xo_finish();
 	}
-	close(readfd);
-	close(writefd);
-#ifdef WITH_PMC
-	if (benchmark_pmc != BENCHMARK_PMC_NONE)
-		pmc_teardown();
-#endif
 }
 
 /*
@@ -1055,7 +1098,7 @@ main(int argc, char *argv[])
 
 	buffersize = BUFFERSIZE;
 	totalsize = TOTALSIZE;
-	while ((ch = getopt(argc, argv, "Bb:i:jp:P:qst:v"
+	while ((ch = getopt(argc, argv, "Bb:i:jn:p:P:qst:v"
 #ifdef WITH_PMC
 	"P:"
 #endif
@@ -1080,6 +1123,12 @@ main(int argc, char *argv[])
 		case 'j':
 			xo_set_style(NULL, XO_STYLE_JSON);
 			xo_set_flags(NULL, XOF_PRETTY);
+			break;
+
+		case 'n':
+			iterations = strtol(optarg, &endp, 10);
+			if (*optarg == '\0' || *endp != '\0' || iterations <= 0)
+				usage();
 			break;
 
 		case 'p':
