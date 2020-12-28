@@ -24,6 +24,8 @@
  * SUCH DAMAGE.
  */
 
+#include <sys/param.h>
+#include <sys/cpuset.h>
 #include <sys/mman.h>
 #include <sys/time.h>
 
@@ -105,6 +107,8 @@ io(const char *path)
 	ssize_t len;
 	int fd;
 	double secs, rate;
+	cpusetid_t cpuset_id;
+	cpuset_t cpuset_mask;
 
 	if (totalsize % buffersize != 0)
 		xo_errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple "
@@ -112,6 +116,18 @@ io(const char *path)
 	blockcount = totalsize / buffersize;
 	if (blockcount < 0)
 		xo_errx(EX_USAGE, "FAIL: negative block count");
+
+	/*
+	 * For the purposes of lab simplicity, pin the benchmark (this process
+	 * and all its children processes) to CPU 0.
+	 */
+	if (cpuset(&cpuset_id) < 0)
+		xo_err(EX_OSERR, "FAIL: cpuset");
+	CPU_ZERO(&cpuset_mask);
+	CPU_SET(1, &cpuset_mask);
+	if (cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1,
+	    sizeof(cpuset_mask), &cpuset_mask) < 0)
+		xo_err(EX_OSERR, "FAIL: cpuset_setaffinity");
 
 	/*
 	 * Configuration information first, if requested.

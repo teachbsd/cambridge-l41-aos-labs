@@ -25,7 +25,8 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/types.h>
+#include <sys/param.h>
+#include <sys/cpuset.h>
 #include <sys/time.h>
 #include <sys/mman.h>
 #include <sys/select.h>
@@ -823,6 +824,8 @@ ipc(void)
 	void *readbuf, *writebuf;
 	int iteration, readfd, writefd;
 	double secs, rate;
+	cpusetid_t cpuset_id;
+	cpuset_t cpuset_mask;
 #ifdef WITH_PMC
 	uint64_t clock_cycles, instr_executed;
 	uint64_t counter0, counter1, counter2, counter3;
@@ -834,6 +837,18 @@ ipc(void)
 	blockcount = totalsize / buffersize;
 	if (blockcount < 0)
 		xo_errx(EX_USAGE, "FAIL: negative block count");
+
+	/*
+	 * For the purposes of lab simplicity, pin the benchmark (this process
+	 * and all its children processes) to CPU 0.
+	 */
+	if (cpuset(&cpuset_id) < 0)
+		xo_err(EX_OSERR, "FAIL: cpuset");
+	CPU_ZERO(&cpuset_mask);
+	CPU_SET(1, &cpuset_mask);
+	if (cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1,
+	    sizeof(cpuset_mask), &cpuset_mask) < 0)
+		xo_err(EX_OSERR, "FAIL: cpuset_setaffinity");
 
 #ifdef WITH_PMC
 	/*
