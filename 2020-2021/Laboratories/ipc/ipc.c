@@ -108,67 +108,50 @@ static long totalsize = TOTALSIZE;	/* total I/O size */
 #define	min(x, y)	((x) < (y) ? (x) : (y))
 
 #ifdef WITH_PMC
-#define	COUNTERSET_MAX_EVENTS	4	/* Maximum hardware registers */
+#define	COUNTERSET_MAX_EVENTS	6	/* Maximum hardware registers */
 
+/* Always collect this data; allow other counters to be configured. */
 #define	COUNTERSET_TRAILER						\
 	"INST_RETIRED",		/* Instructions retired */		\
 	"CPU_CYCLES"		/* Cycle counter */
 
-#define	COUNTERSET_TRAILER_INSTR_EXECUTED	2	/* Array index */
-#define	COUNTERSET_TRAILER_CLOCK_CYCLES		3	/* Array index */
+#define	COUNTERSET_TRAILER_INSTR_EXECUTED	4	/* Array index */
+#define	COUNTERSET_TRAILER_CLOCK_CYCLES		5	/* Array index */
 
-static const char *counterset_l1d[COUNTERSET_MAX_EVENTS] = {
+static const char *counterset_dcache[COUNTERSET_MAX_EVENTS] = {
 	"L1D_CACHE",		/* Level-1 data-cache hits */
 	"L1D_CACHE_REFILL",	/* Level-1 data-cache misses */
-	COUNTERSET_TRAILER
-};
-
-static const char *counterset_l1i[COUNTERSET_MAX_EVENTS] = {
-	"L1I_CACHE",		/* Level-1 instruction-cache hits */
-	"L1I_CACHE_REFILL",	/* Level-1 instruction-cache misses */
-	COUNTERSET_TRAILER
-};
-
-static const char *counterset_l2[COUNTERSET_MAX_EVENTS] = {
 	"L2D_CACHE",		/* Level-2 cache hits */
 	"L2D_CACHE_REFILL",	/* Level-2 cache misses */
 	COUNTERSET_TRAILER
 };
 
-static const char *counterset_mem[COUNTERSET_MAX_EVENTS] = {
-	"MEM_ACCESS",		/* Memory reads/writes issued by instructions */
+static const char *counterset_icache[COUNTERSET_MAX_EVENTS] = {
+	"L1I_CACHE",		/* Level-1 instruction-cache hits */
+	"L1I_CACHE_REFILL",	/* Level-1 instruction-cache misses */
+	NULL,
 	NULL,
 	COUNTERSET_TRAILER
 };
 
-static const char *counterset_tlb[COUNTERSET_MAX_EVENTS] = {
-	"L1I_TLB_REFILL",	/* Instruction-TLB refills */
+static const char *counterset_tlbmem[COUNTERSET_MAX_EVENTS] = {
 	"L1D_TLB_REFILL",	/* Data-TLB refills */
-	COUNTERSET_TRAILER
-};
-
-static const char *counterset_bus[COUNTERSET_MAX_EVENTS] = {
+	"L1I_TLB_REFILL",	/* Instruction-TLB refills */
+	"MEM_ACCESS",		/* Memory reads/writes issued by instructions */
 	"BUS_ACCESS",		/* Memory accesses over the bus */
-	NULL,
 	COUNTERSET_TRAILER
 };
 
 #define	BENCHMARK_PMC_INVALID_STRING	"invalid"
-#define	BENCHMARK_PMC_L1D_STRING	"l1d"
-#define	BENCHMARK_PMC_L1I_STRING	"l1i"
-#define	BENCHMARK_PMC_L2_STRING		"l2"
-#define	BENCHMARK_PMC_MEM_STRING	"mem"
-#define	BENCHMARK_PMC_TLB_STRING	"tlb"
-#define	BENCHMARK_PMC_BUS_STRING	"bus"
+#define	BENCHMARK_PMC_DCACHE_STRING	"dcache"
+#define	BENCHMARK_PMC_ICACHE_STRING	"icache"
+#define	BENCHMARK_PMC_TLBMEM_STRING	"tlbmem"
 
 #define	BENCHMARK_PMC_INVALID		-1
 #define	BENCHMARK_PMC_NONE		0
-#define	BENCHMARK_PMC_L1D		1
-#define	BENCHMARK_PMC_L1I		2
-#define	BENCHMARK_PMC_L2		3
-#define	BENCHMARK_PMC_MEM		4
-#define	BENCHMARK_PMC_TLB		5
-#define	BENCHMARK_PMC_BUS		6
+#define	BENCHMARK_PMC_DCACHE		1
+#define	BENCHMARK_PMC_ICACHE		2
+#define	BENCHMARK_PMC_TLBMEM		3
 
 #define	BENCHMARK_PMC_DEFAULT	BENCHMARK_PMC_NONE
 static unsigned int benchmark_pmc = BENCHMARK_PMC_NONE;
@@ -187,28 +170,16 @@ pmc_setup_run(void)
 	case BENCHMARK_PMC_NONE:
 		return;
 
-	case BENCHMARK_PMC_L1D:
-		counterset = counterset_l1d;
+	case BENCHMARK_PMC_DCACHE:
+		counterset = counterset_dcache;
 		break;
 
-	case BENCHMARK_PMC_L1I:
-		counterset = counterset_l1i;
+	case BENCHMARK_PMC_ICACHE:
+		counterset = counterset_icache;
 		break;
 
-	case BENCHMARK_PMC_L2:
-		counterset = counterset_l2;
-		break;
-
-	case BENCHMARK_PMC_MEM:
-		counterset = counterset_mem;
-		break;
-
-	case BENCHMARK_PMC_TLB:
-		counterset = counterset_tlb;
-		break;
-
-	case BENCHMARK_PMC_BUS:
-		counterset = counterset_bus;
+	case BENCHMARK_PMC_TLBMEM:
+		counterset = counterset_tlbmem;
 		break;
 
 	default:
@@ -289,18 +260,12 @@ static int
 benchmark_pmc_from_string(const char *string)
 {
 
-	if (strcmp(BENCHMARK_PMC_L1D_STRING, string) == 0)
-		return (BENCHMARK_PMC_L1D);
-	else if (strcmp(BENCHMARK_PMC_L1I_STRING, string) == 0)
-		return (BENCHMARK_PMC_L1I);
-	else if (strcmp(BENCHMARK_PMC_L2_STRING, string) == 0)
-		return (BENCHMARK_PMC_L2);
-	else if (strcmp(BENCHMARK_PMC_MEM_STRING, string) == 0)
-		return (BENCHMARK_PMC_MEM);
-	else if (strcmp(BENCHMARK_PMC_TLB_STRING, string) == 0)
-		return (BENCHMARK_PMC_TLB);
-	else if (strcmp(BENCHMARK_PMC_BUS_STRING, string) == 0)
-		return (BENCHMARK_PMC_BUS);
+	if (strcmp(BENCHMARK_PMC_DCACHE_STRING, string) == 0)
+		return (BENCHMARK_PMC_DCACHE);
+	else if (strcmp(BENCHMARK_PMC_ICACHE_STRING, string) == 0)
+		return (BENCHMARK_PMC_ICACHE);
+	else if (strcmp(BENCHMARK_PMC_TLBMEM_STRING, string) == 0)
+		return (BENCHMARK_PMC_TLBMEM);
 	else
 		return (BENCHMARK_PMC_INVALID);
 }
@@ -310,23 +275,14 @@ benchmark_pmc_to_string(int type)
 {
 
 	switch (type) {
-	case BENCHMARK_PMC_L1D:
-		return (BENCHMARK_PMC_L1D_STRING);
+	case BENCHMARK_PMC_DCACHE:
+		return (BENCHMARK_PMC_DCACHE_STRING);
 
-	case BENCHMARK_PMC_L1I:
-		return (BENCHMARK_PMC_L1I_STRING);
+	case BENCHMARK_PMC_ICACHE:
+		return (BENCHMARK_PMC_ICACHE_STRING);
 
-	case BENCHMARK_PMC_L2:
-		return (BENCHMARK_PMC_L2_STRING);
-
-	case BENCHMARK_PMC_MEM:
-		return (BENCHMARK_PMC_MEM_STRING);
-
-	case BENCHMARK_PMC_TLB:
-		return (BENCHMARK_PMC_TLB_STRING);
-
-	case BENCHMARK_PMC_BUS:
-		return (BENCHMARK_PMC_BUS_STRING);
+	case BENCHMARK_PMC_TLBMEM:
+		return (BENCHMARK_PMC_TLBMEM_STRING);
 
 	default:
 		return (BENCHMARK_PMC_INVALID_STRING);
@@ -411,7 +367,7 @@ usage(void)
 	    "%s [-Bjqsv] [-b buffersize] [-i pipe|local|tcp] [-n iterations]\n"
 	    "    [-p tcp_port]"
 #ifdef WITH_PMC
-	    " [-P l1d|l1i|l2|mem|tlb|bus] "
+	    " [-P dcache|icache|tlbmem] "
 #endif
 	    " [-t totalsize] mode\n", PROGNAME);
 	xo_error("\n"
@@ -426,7 +382,7 @@ usage(void)
   "    -j                     Output as JSON\n"
   "    -p tcp_port            Set TCP port number (default: %u)\n"
 #ifdef WITH_PMC
-  "    -P l1d|l1i|l2|mem|tlb|bus  Enable hardware performance counters\n"
+  "    -P dcache|icache|tlbmem  Enable hardware performance counters\n"
 #endif
   "    -q                     Just run the benchmark, don't print stuff out\n"
   "    -s                     Set send/receive socket-buffer sizes to buffersize\n"
@@ -868,7 +824,8 @@ ipc(void)
 	int iteration, readfd, writefd;
 	double secs, rate;
 #ifdef WITH_PMC
-	uint64_t clock_cycles, instr_executed, counter0, counter1;
+	uint64_t clock_cycles, instr_executed;
+	uint64_t counter0, counter1, counter2, counter3;
 #endif
 
 	if (totalsize % buffersize != 0)
@@ -1056,6 +1013,42 @@ ipc(void)
 				    "{:counter1_per_cycle/%F}\n",
 				    counterset[1],
 				    (float)counter1/clock_cycles);
+			}
+			if (counterset[2] != NULL) {
+				counter2 = pmc_values[2];
+				xo_emit("  {:counter2_name/%s}: "
+				    "{:counter2_value/%ju}\n", counterset[2],
+				    counter2);
+				xo_emit("  ");
+				xo_emit(counterset[2]);
+				xo_emit("/INSTR_EXECUTED: "
+				    "{:counter2_per_instruction/%F}\n",
+				    counterset[2],
+				    (float)counter2/instr_executed);
+				xo_emit("  ");
+				xo_emit(counterset[2]);
+				xo_emit("/CLOCK_CYCLES: "
+				    "{:counter2_per_cycle/%F}\n",
+				    counterset[2],
+				    (float)counter2/clock_cycles);
+			}
+			if (counterset[3] != NULL) {
+				counter3 = pmc_values[3];
+				xo_emit("  {:counter3_name/%s}: "
+				    "{:counter3_value/%ju}\n", counterset[3],
+				    counter3);
+				xo_emit("  ");
+				xo_emit(counterset[3]);
+				xo_emit("/INSTR_EXECUTED: "
+				    "{:counter3_per_instruction/%F}\n",
+				    counterset[3],
+				    (float)counter3/instr_executed);
+				xo_emit("  ");
+				xo_emit(counterset[3]);
+				xo_emit("/CLOCK_CYCLES: "
+				    "{:counter3_per_cycle/%F}\n",
+				    counterset[3],
+				    (float)counter3/clock_cycles);
 			}
 		}
 #endif
