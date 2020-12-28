@@ -243,13 +243,12 @@ io(const char *path)
 			 */
 			xo_open_instance("datum");
 			xo_emit("datum:\n");
-			xo_emit("  bandwidth: {:bandwidth/%1.2F} KBytes/sec\t",
+			xo_emit("  bandwidth: {:bandwidth/%1.2F} KBytes/sec\n",
 			    rate);
 			/* XXXRW: Ideally would print as a float? */
-			xo_emit("time: {:time/%jd.%09jd} seconds",
+			xo_emit("time: {:time/%jd.%09jd} seconds\n",
 			    (intmax_t)ts_finish.tv_sec,
 			    (intmax_t)ts_finish.tv_nsec);
-			xo_emit("\n");
 			xo_close_instance("datum");
 			xo_flush();
 		}
