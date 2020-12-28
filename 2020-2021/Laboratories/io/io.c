@@ -246,7 +246,7 @@ io(const char *path)
 			xo_emit("  bandwidth: {:bandwidth/%1.2F} KBytes/sec\n",
 			    rate);
 			/* XXXRW: Ideally would print as a float? */
-			xo_emit("time: {:time/%jd.%09jd} seconds\n",
+			xo_emit("  time: {:time/%jd.%09jd} seconds\n",
 			    (intmax_t)ts_finish.tv_sec,
 			    (intmax_t)ts_finish.tv_nsec);
 			xo_close_instance("datum");
