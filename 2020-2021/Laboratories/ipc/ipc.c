@@ -146,6 +146,7 @@ static const char *counterset_tlbmem[COUNTERSET_MAX_EVENTS] = {
 	COUNTERSET_TRAILER
 };
 
+#define	BENCHMARK_PMC_NONE_STRING	"none"
 #define	BENCHMARK_PMC_INVALID_STRING	"invalid"
 #define	BENCHMARK_PMC_DCACHE_STRING	"dcache"
 #define	BENCHMARK_PMC_ICACHE_STRING	"icache"
@@ -264,7 +265,9 @@ static int
 benchmark_pmc_from_string(const char *string)
 {
 
-	if (strcmp(BENCHMARK_PMC_DCACHE_STRING, string) == 0)
+	if (strcmp(BENCHMARK_PMC_NONE_STRING, string) == -0)
+		return (BENCHMARK_PMC_NONE);
+	else if (strcmp(BENCHMARK_PMC_DCACHE_STRING, string) == 0)
 		return (BENCHMARK_PMC_DCACHE);
 	else if (strcmp(BENCHMARK_PMC_ICACHE_STRING, string) == 0)
 		return (BENCHMARK_PMC_ICACHE);
@@ -279,6 +282,9 @@ benchmark_pmc_to_string(int type)
 {
 
 	switch (type) {
+	case BENCHMARK_PMC_NONE:
+		return (BENCHMARK_PMC_NONE_STRING);
+
 	case BENCHMARK_PMC_DCACHE:
 		return (BENCHMARK_PMC_DCACHE_STRING);
 
