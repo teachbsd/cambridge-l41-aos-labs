@@ -249,14 +249,14 @@ pmc_end(void)
 	for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
 		if (counterset[i] == NULL)
 			continue;
-		if (pmc_read(pmcid[i], &pmc_values[i]) < 0)
-			xo_err(EX_OSERR, "FAIL: pmc_read %s", counterset[i]);
+		if (pmc_stop(pmcid[i]) < 0)
+			xo_err(EX_OSERR, "FAIL: pmc_stop %s", counterset[i]);
 	}
 	for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
 		if (counterset[i] == NULL)
 			continue;
-		if (pmc_stop(pmcid[i]) < 0)
-			xo_err(EX_OSERR, "FAIL: pmc_stop %s", counterset[i]);
+		if (pmc_read(pmcid[i], &pmc_values[i]) < 0)
+			xo_err(EX_OSERR, "FAIL: pmc_read %s", counterset[i]);
 	}
 }
 
