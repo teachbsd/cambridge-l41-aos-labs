@@ -917,7 +917,7 @@ ipc(void)
 	/*
 	 * Set up the PMC library -- things done only once.
 	 */
-	if (pmc_init() < 0)
+	if ((benchmark_pmc != BENCHMARK_PMC_NONE) && (pmc_init() < 0))
 		xo_err(EX_OSERR, "FAIL: pmc_init");
 #endif
 
