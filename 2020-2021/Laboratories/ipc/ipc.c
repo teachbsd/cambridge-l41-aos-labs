@@ -371,7 +371,7 @@ usage(void)
 	    "%s [-Bjqsv] [-b buffersize] [-i pipe|local|tcp] [-n iterations]\n"
 	    "    [-p tcp_port]"
 #ifdef WITH_PMC
-	    " [-P dcache|icache|tlbmem] "
+	    " [-P dcache|icache|tlbmem]"
 #endif
 	    " [-t totalsize] mode\n", PROGNAME);
 	xo_error("\n"
