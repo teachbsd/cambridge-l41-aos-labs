@@ -27,6 +27,7 @@
 #include <sys/param.h>
 #include <sys/cpuset.h>
 #include <sys/mman.h>
+#include <sys/sysctl.h>
 #include <sys/time.h>
 
 #include <fcntl.h>
@@ -62,6 +63,7 @@ static unsigned int wflag;	/* write() */
 static long buffersize;		/* I/O buffer size */
 static long iterations;		/* number of iterations  to perform */
 static long totalsize;		/* total I/O size; multiple of buffer size */
+static long blockcount;		/* derived number of blocks. */
 
 /*
  * Print usage message and exit.
@@ -91,6 +93,64 @@ usage(void)
 	    BLOCKSIZE, ITERATIONS, TOTALSIZE);
 	xo_finish();
 	exit(EX_USAGE);
+}
+
+static void
+print_configuration(const char *path)
+{
+        char buffer[80];
+        int integer;
+        unsigned long unsignedlong;
+        size_t len;
+
+        xo_open_container("host_configuration");
+        xo_emit("Host configuration:\n");
+
+        /* hw.machine */
+        len = sizeof(buffer);
+        if (sysctlbyname("hw.machine", buffer, &len, NULL, 0) < 0)
+                xo_err(EX_OSERR, "sysctlbyname: hw.machine");
+        buffer[sizeof(buffer)-1] = '\0';
+        xo_emit("  hw.machine: {:hw.machine/%s}\n", buffer);
+
+        /* hw.model */
+        len = sizeof(buffer);
+        if (sysctlbyname("hw.model", buffer, &len, NULL, 0) < 0)
+                xo_err(EX_OSERR, "sysctlbyname: hw.model");
+        buffer[sizeof(buffer)-1] = '\0';
+        xo_emit("  hw.model: {:hw.model/%s}\n", buffer);
+
+        /* hw.ncpu */
+        len = sizeof(integer);
+        if (sysctlbyname("hw.ncpu", &integer, &len, NULL, 0) < 0)
+                xo_err(EX_OSERR, "sysctlbyname: hw.ncpu");
+        xo_emit("  hw.ncpu: {:hw.ncpu/%d}\n", integer);
+
+        /* hw.physmem */
+        len = sizeof(unsignedlong);
+        if (sysctlbyname("hw.physmem", &unsignedlong, &len, NULL, 0) < 0)
+                xo_err(EX_OSERR, "sysctlbyname: hw.physmem");
+        xo_emit("  hw.physmem: {:hw.physmem/%lu}\n", unsignedlong);
+
+        /* hw.cpufreq.arm_freq */
+        len = sizeof(integer);
+        if (sysctlbyname("hw.cpufreq.arm_freq", &integer, &len, NULL, 0) < 0)
+                xo_err(EX_OSERR, "sysctlbyname: hw.cpufreq.arm_freq");
+        xo_emit("  hw.cpufreq.arm_freq: {:hw.cpufreq.arm_freq/%lu}\n",
+            integer);
+        xo_close_container("host_configuration");
+
+	xo_open_container("benchmark_configuration");
+	xo_emit("Benchmark configuration:\n");
+	xo_emit("  buffersize: {:buffersize/%ld}\n", buffersize);
+	xo_emit("  totalsize: {:totalsize/%ld}\n", totalsize);
+	xo_emit("  blockcount: {:blockcount/%ld}\n", blockcount);
+	xo_emit("  operation: {:operation/%s}\n", cflag ?  "create" :
+	    (wflag ? "write" : "read"));
+	xo_emit("  path: {:path/%s}\n", path);
+	xo_close_container("benchmark_configuration");
+
+	xo_flush();
 }
 
 /*
@@ -132,18 +192,8 @@ io(const char *path)
 	/*
 	 * Configuration information first, if requested.
 	 */
-	if (!qflag && vflag) {
-		xo_open_container("benchmark_configuration");
-		xo_emit("Benchmark configuration:\n");
-		xo_emit("  buffersize: {:buffersize/%ld}\n", buffersize);
-		xo_emit("  totalsize: {:totalsize/%ld}\n", totalsize);
-		xo_emit("  blockcount: {:blockcount/%ld}\n", blockcount);
-		xo_emit("  operation: {:operation/%s}\n", cflag ?  "create" :
-		    (wflag ? "write" : "read"));
-		xo_emit("  path: {:path/%s}\n", path);
-		xo_close_container("benchmark_configuration");
-		xo_flush();
-	}
+	if (!qflag && vflag)
+		print_configuration(path);
 
 	if (!qflag)
 		xo_open_list("benchmark_samples");
