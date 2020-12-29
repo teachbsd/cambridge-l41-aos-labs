@@ -70,7 +70,7 @@ static void
 usage(void)
 {
 
-	xo_error("usage: io %s -c|-r|-w [-Bdjqsv] [-b buffersize]\n"
+	xo_error("usage: %s -c|-r|-w [-Bdjqsv] [-b buffersize]\n"
 	    "    [-n iterations] [-t totalsize] path\n", PROGNAME);
 	xo_error("\n"
   "Modes (pick one):\n"
