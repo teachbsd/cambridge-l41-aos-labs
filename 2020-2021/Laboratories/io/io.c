@@ -203,7 +203,7 @@ io(const char *path)
 		 */
 		buf = mmap(NULL, buffersize, PROT_READ | PROT_WRITE, MAP_ANON,
 		    -1, 0);
-		if (buf == NULL)
+		if (buf == MAP_FAILED)
 			xo_err(EX_OSERR, "FAIL: mmap");
 
 		/*
