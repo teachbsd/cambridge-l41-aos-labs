@@ -122,6 +122,21 @@ static long blockcount;			/* Derived number of blocks. */
 #define	COUNTERSET_TRAILER_INSTR_EXECUTED	4	/* Array index */
 #define	COUNTERSET_TRAILER_CLOCK_CYCLES		5	/* Array index */
 
+/*
+ * In principle ARMv8-A supports non-speculative LD_RETIRED, ST_RETIRED, and
+ * BR_RETURN_RETIRED.  However, the A72 doesn't, so we have to use counters
+ * for speculatively executed operations.  Possibly we might prefer to use the
+ * MEM_ACCESS_LD and MEM_ACCESS_ST counters instead.  But, as a result of all
+ * of this, 'arch' isn't really representative.
+ */
+static const char *counterset_arch[COUNTERSET_MAX_EVENTS] = {
+	"LD_SPEC",		/* Speculated loads (any width) */
+	"ST_SPEC",		/* Speculated stores (any width) */
+	"EXC_RETURN",		/* Architectural exception returns */
+	"BR_RETURN_SPEC",	/* Speculated function returns */
+	COUNTERSET_TRAILER
+};
+
 static const char *counterset_dcache[COUNTERSET_MAX_EVENTS] = {
 	"L1D_CACHE",		/* Level-1 data-cache hits */
 	"L1D_CACHE_REFILL",	/* Level-1 data-cache misses */
@@ -130,11 +145,11 @@ static const char *counterset_dcache[COUNTERSET_MAX_EVENTS] = {
 	COUNTERSET_TRAILER
 };
 
-static const char *counterset_icache[COUNTERSET_MAX_EVENTS] = {
+static const char *counterset_instr[COUNTERSET_MAX_EVENTS] = {
 	"L1I_CACHE",		/* Level-1 instruction-cache hits */
 	"L1I_CACHE_REFILL",	/* Level-1 instruction-cache misses */
-	NULL,
-	NULL,
+	"BR_MIS_PRED",		/* Speculative branch mispredicted */
+	"BR_PRD",		/* Specualtive branch predicted */
 	COUNTERSET_TRAILER
 };
 
@@ -148,15 +163,17 @@ static const char *counterset_tlbmem[COUNTERSET_MAX_EVENTS] = {
 
 #define	BENCHMARK_PMC_NONE_STRING	"none"
 #define	BENCHMARK_PMC_INVALID_STRING	"invalid"
+#define	BENCHMARK_PMC_ARCH_STRING	"arch"
 #define	BENCHMARK_PMC_DCACHE_STRING	"dcache"
-#define	BENCHMARK_PMC_ICACHE_STRING	"icache"
+#define	BENCHMARK_PMC_INSTR_STRING	"instr"
 #define	BENCHMARK_PMC_TLBMEM_STRING	"tlbmem"
 
 #define	BENCHMARK_PMC_INVALID		-1
 #define	BENCHMARK_PMC_NONE		0
-#define	BENCHMARK_PMC_DCACHE		1
-#define	BENCHMARK_PMC_ICACHE		2
-#define	BENCHMARK_PMC_TLBMEM		3
+#define	BENCHMARK_PMC_ARCH		1
+#define	BENCHMARK_PMC_DCACHE		2
+#define	BENCHMARK_PMC_INSTR		3
+#define	BENCHMARK_PMC_TLBMEM		4
 
 #define	BENCHMARK_PMC_DEFAULT	BENCHMARK_PMC_NONE
 static unsigned int benchmark_pmc = BENCHMARK_PMC_NONE;
@@ -175,12 +192,16 @@ pmc_setup_run(void)
 	case BENCHMARK_PMC_NONE:
 		return;
 
+	case BENCHMARK_PMC_ARCH:
+		counterset = counterset_arch;
+		break;
+
 	case BENCHMARK_PMC_DCACHE:
 		counterset = counterset_dcache;
 		break;
 
-	case BENCHMARK_PMC_ICACHE:
-		counterset = counterset_icache;
+	case BENCHMARK_PMC_INSTR:
+		counterset = counterset_instr;
 		break;
 
 	case BENCHMARK_PMC_TLBMEM:
@@ -267,10 +288,12 @@ benchmark_pmc_from_string(const char *string)
 
 	if (strcmp(BENCHMARK_PMC_NONE_STRING, string) == -0)
 		return (BENCHMARK_PMC_NONE);
+	else if (strcmp(BENCHMARK_PMC_ARCH_STRING, string) == 0)
+		return (BENCHMARK_PMC_ARCH);
 	else if (strcmp(BENCHMARK_PMC_DCACHE_STRING, string) == 0)
 		return (BENCHMARK_PMC_DCACHE);
-	else if (strcmp(BENCHMARK_PMC_ICACHE_STRING, string) == 0)
-		return (BENCHMARK_PMC_ICACHE);
+	else if (strcmp(BENCHMARK_PMC_INSTR_STRING, string) == 0)
+		return (BENCHMARK_PMC_INSTR);
 	else if (strcmp(BENCHMARK_PMC_TLBMEM_STRING, string) == 0)
 		return (BENCHMARK_PMC_TLBMEM);
 	else
@@ -285,11 +308,14 @@ benchmark_pmc_to_string(int type)
 	case BENCHMARK_PMC_NONE:
 		return (BENCHMARK_PMC_NONE_STRING);
 
+	case BENCHMARK_PMC_ARCH:
+		return (BENCHMARK_PMC_ARCH_STRING);
+
 	case BENCHMARK_PMC_DCACHE:
 		return (BENCHMARK_PMC_DCACHE_STRING);
 
-	case BENCHMARK_PMC_ICACHE:
-		return (BENCHMARK_PMC_ICACHE_STRING);
+	case BENCHMARK_PMC_INSTR:
+		return (BENCHMARK_PMC_INSTR_STRING);
 
 	case BENCHMARK_PMC_TLBMEM:
 		return (BENCHMARK_PMC_TLBMEM_STRING);
@@ -377,7 +403,7 @@ usage(void)
 	    "%s [-Bjqsv] [-b buffersize] [-i pipe|local|tcp] [-n iterations]\n"
 	    "    [-p tcp_port]"
 #ifdef WITH_PMC
-	    " [-P dcache|icache|tlbmem]"
+	    " [-P arch|dcache|instr|tlbmem]"
 #endif
 	    " [-t totalsize] mode\n", PROGNAME);
 	xo_error("\n"
@@ -392,7 +418,7 @@ usage(void)
   "    -j                     Output as JSON\n"
   "    -p tcp_port            Set TCP port number (default: %u)\n"
 #ifdef WITH_PMC
-  "    -P dcache|icache|tlbmem  Enable hardware performance counters\n"
+  "    -P arch|dcache|instr|tlbmem  Enable hardware performance counters\n"
 #endif
   "    -q                     Just run the benchmark, don't print stuff out\n"
   "    -s                     Set send/receive socket-buffer sizes to buffersize\n"
