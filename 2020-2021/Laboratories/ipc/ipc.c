@@ -948,16 +948,16 @@ ipc(void)
 			pmc_setup_run();
 #endif
 		/*
-		 * Allocate zero-filled memory for our I/O buffer.
-		 *
-		 * XXXRW: Use mmap() rather than calloc()?  Touch each page?
+		 * Allocate zero-filled memory for our IPC buffer.
 		 */
-		readbuf = calloc(buffersize, 1);
+		readbuf = mmap(NULL, buffersize, PROT_READ | PROT_WRITE,
+		    MAP_ANON, -1, 0);
 		if (readbuf == NULL)
-			xo_err(EX_OSERR, "FAIL: calloc");
-		writebuf = calloc(buffersize, 2);
+			xo_err(EX_OSERR, "FAIL: mmap");
+		writebuf = mmap(NULL, buffersize, PROT_READ | PROT_WRITE,
+		    MAP_ANON, -1, 0);
 		if (writebuf == NULL)
-			xo_err(EX_OSERR, "FAIL: calloc");
+			xo_err(EX_OSERR, "FAIL: mmap");
 
 		/*
 		 * Allocate and connect a suitable IPC object handle pair.
@@ -1141,8 +1141,8 @@ ipc(void)
 #endif
 		close(readfd);
 		close(writefd);
-		free(readbuf);
-		free(writebuf);
+		munmap(readbuf, buffersize);
+		munmap(writebuf, buffersize);
 	}
 	if (!qflag) {
 		xo_close_list("benchmark_samples");
