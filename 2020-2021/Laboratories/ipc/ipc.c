@@ -115,7 +115,7 @@ static long blockcount;			/* Derived number of blocks. */
 #define	COUNTERSET_MAX_EVENTS	6	/* Maximum hardware registers */
 
 /* Always collect this data; allow other counters to be configured. */
-#define	COUNTERSET_TRAILER						\
+#define	COUNTERSET_HEADER						\
 	"INST_RETIRED",		/* Instructions retired */		\
 	"CPU_CYCLES"		/* Cycle counter */
 
@@ -130,35 +130,35 @@ static long blockcount;			/* Derived number of blocks. */
  * of this, 'arch' isn't really representative.
  */
 static const char *counterset_arch[COUNTERSET_MAX_EVENTS] = {
+	COUNTERSET_HEADER,
 	"LD_SPEC",		/* Speculated loads (any width) */
 	"ST_SPEC",		/* Speculated stores (any width) */
 	"EXC_RETURN",		/* Architectural exception returns */
 	"BR_RETURN_SPEC",	/* Speculated function returns */
-	COUNTERSET_TRAILER
 };
 
 static const char *counterset_dcache[COUNTERSET_MAX_EVENTS] = {
+	COUNTERSET_HEADER,
 	"L1D_CACHE",		/* Level-1 data-cache hits */
 	"L1D_CACHE_REFILL",	/* Level-1 data-cache misses */
 	"L2D_CACHE",		/* Level-2 cache hits */
 	"L2D_CACHE_REFILL",	/* Level-2 cache misses */
-	COUNTERSET_TRAILER
 };
 
 static const char *counterset_instr[COUNTERSET_MAX_EVENTS] = {
+	COUNTERSET_HEADER,
 	"L1I_CACHE",		/* Level-1 instruction-cache hits */
 	"L1I_CACHE_REFILL",	/* Level-1 instruction-cache misses */
 	"BR_MIS_PRED",		/* Speculative branch mispredicted */
-	"BR_PRD",		/* Specualtive branch predicted */
-	COUNTERSET_TRAILER
+	"BR_PRED",		/* Specualtive branch predicted */
 };
 
 static const char *counterset_tlbmem[COUNTERSET_MAX_EVENTS] = {
+	COUNTERSET_HEADER,
 	"L1D_TLB_REFILL",	/* Data-TLB refills */
 	"L1I_TLB_REFILL",	/* Instruction-TLB refills */
 	"MEM_ACCESS",		/* Memory reads/writes issued by instructions */
 	"BUS_ACCESS",		/* Memory accesses over the bus */
-	COUNTERSET_TRAILER
 };
 
 #define	BENCHMARK_PMC_NONE_STRING	"none"
@@ -917,14 +917,10 @@ ipc(void)
 {
 	struct timespec ts;
 	void *readbuf, *writebuf;
-	int iteration, readfd, writefd;
+	int i, iteration, readfd, writefd;
 	double secs, rate;
 	cpusetid_t cpuset_id;
 	cpuset_t cpuset_mask;
-#ifdef WITH_PMC
-	uint64_t clock_cycles, instr_executed;
-	uint64_t counter0, counter1, counter2, counter3;
-#endif
 
 	if (totalsize % buffersize != 0)
 		xo_errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple "
@@ -1067,89 +1063,12 @@ ipc(void)
 		}
 #ifdef WITH_PMC
 		if (!qflag && (benchmark_pmc != BENCHMARK_PMC_NONE)) {
-			clock_cycles =
-			    pmc_values[COUNTERSET_TRAILER_CLOCK_CYCLES];
-			instr_executed =
-			    pmc_values[COUNTERSET_TRAILER_INSTR_EXECUTED];
-
-			xo_emit("  INSTR_EXECUTED: {:instr_executed/%ju}\n",
-			    (uintmax_t)instr_executed);
-			xo_emit("  CLOCK_CYCLES: {:clock_cycles/%ju}\n",
-			    clock_cycles);
-			xo_emit("  CLOCK_CYCLES/INSTR_EXECUTED: "
-			    "{:cycles_per_instruction/%F}\n",
-			    (float)clock_cycles/instr_executed);
-
-			/* Mode-specific counters. */
-			if (counterset[0] != NULL) {
-				counter0 = pmc_values[0];
-				xo_emit("  {:counter0_name/%s}: "
-				    "{:counter0_value/%ju}\n", counterset[0],
-				    counter0);
+			for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
+				if (counterset[i] == NULL)
+					continue;
 				xo_emit("  ");
-				xo_emit(counterset[0]);
-				xo_emit("/INSTR_EXECUTED: "
-				    "{:counter0_per_instruction/%F}\n",
-				    (float)counter0/instr_executed);
-				xo_emit("  ");
-				xo_emit(counterset[0]);
-				xo_emit("/CLOCK_CYCLES: "
-				    "{:counter0_per_cycle/%F}\n",
-				    (float)counter0/clock_cycles);
-			}
-			if (counterset[1] != NULL) {
-				counter1 = pmc_values[1];
-				xo_emit("  {:counter1_name/%s}: "
-				    "{:counter1_value/%ju}\n", counterset[1],
-				    counter1);
-				xo_emit("  ");
-				xo_emit(counterset[1]);
-				xo_emit("/INSTR_EXECUTED: "
-				    "{:counter1_per_instruction/%F}\n",
-				    counterset[1],
-				    (float)counter1/instr_executed);
-				xo_emit("  ");
-				xo_emit(counterset[1]);
-				xo_emit("/CLOCK_CYCLES: "
-				    "{:counter1_per_cycle/%F}\n",
-				    counterset[1],
-				    (float)counter1/clock_cycles);
-			}
-			if (counterset[2] != NULL) {
-				counter2 = pmc_values[2];
-				xo_emit("  {:counter2_name/%s}: "
-				    "{:counter2_value/%ju}\n", counterset[2],
-				    counter2);
-				xo_emit("  ");
-				xo_emit(counterset[2]);
-				xo_emit("/INSTR_EXECUTED: "
-				    "{:counter2_per_instruction/%F}\n",
-				    counterset[2],
-				    (float)counter2/instr_executed);
-				xo_emit("  ");
-				xo_emit(counterset[2]);
-				xo_emit("/CLOCK_CYCLES: "
-				    "{:counter2_per_cycle/%F}\n",
-				    counterset[2],
-				    (float)counter2/clock_cycles);
-			}
-			if (counterset[3] != NULL) {
-				counter3 = pmc_values[3];
-				xo_emit("  {:counter3_name/%s}: "
-				    "{:counter3_value/%ju}\n", counterset[3],
-				    counter3);
-				xo_emit("  ");
-				xo_emit(counterset[3]);
-				xo_emit("/INSTR_EXECUTED: "
-				    "{:counter3_per_instruction/%F}\n",
-				    counterset[3],
-				    (float)counter3/instr_executed);
-				xo_emit("  ");
-				xo_emit(counterset[3]);
-				xo_emit("/CLOCK_CYCLES: "
-				    "{:counter3_per_cycle/%F}\n",
-				    counterset[3],
-				    (float)counter3/clock_cycles);
+				xo_emit_field("V", counterset[i], "%s", "%ju",
+				    pmc_values[i]);
 			}
 		}
 #endif
