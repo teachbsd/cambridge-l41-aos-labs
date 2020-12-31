@@ -119,8 +119,8 @@ static long blockcount;			/* Derived number of blocks. */
 	"INST_RETIRED",		/* Instructions retired */		\
 	"CPU_CYCLES"		/* Cycle counter */
 
-#define	COUNTERSET_TRAILER_INSTR_EXECUTED	4	/* Array index */
-#define	COUNTERSET_TRAILER_CLOCK_CYCLES		5	/* Array index */
+#define	COUNTERSET_HEADER_INSTR_EXECUTED	0	/* Array index */
+#define	COUNTERSET_HEADER_CLOCK_CYCLES		1	/* Array index */
 
 /*
  * In principle ARMv8-A supports non-speculative LD_RETIRED, ST_RETIRED, and
@@ -137,19 +137,31 @@ static const char *counterset_arch[COUNTERSET_MAX_EVENTS] = {
 	"BR_RETURN_SPEC",	/* Speculated function returns */
 };
 
+/*
+ * NB: Keep INDEX constants in sync, as they are used to calculate derived
+ * values such as cache miss rates.
+ */
 static const char *counterset_dcache[COUNTERSET_MAX_EVENTS] = {
 	COUNTERSET_HEADER,
+#define	COUNTERSET_DCACHE_INDEX_L1D_CACHE		2
 	"L1D_CACHE",		/* Level-1 data-cache hits */
+#define	COUNTERSET_DCACHE_INDEX_L1D_CACHE_REFILL	3
 	"L1D_CACHE_REFILL",	/* Level-1 data-cache misses */
+#define	COUNTERSET_DCACHE_INDEX_L2D_CACHE		4
 	"L2D_CACHE",		/* Level-2 cache hits */
+#define	COUNTERSET_DCACHE_INDEX_L2D_CACHE_REFILL	5
 	"L2D_CACHE_REFILL",	/* Level-2 cache misses */
 };
 
 static const char *counterset_instr[COUNTERSET_MAX_EVENTS] = {
 	COUNTERSET_HEADER,
+#define	COUNTERSET_INSTR_INDEX_L1I_CACHE		2
 	"L1I_CACHE",		/* Level-1 instruction-cache hits */
+#define	COUNTERSET_INSTR_INDEX_L1I_CACHE_REFILL		3
 	"L1I_CACHE_REFILL",	/* Level-1 instruction-cache misses */
+#define	COUNTERSET_INSTR_INDEX_BR_MIS_PRED		4
 	"BR_MIS_PRED",		/* Speculative branch mispredicted */
+#define	COUNTERSET_INSTR_INDEX_BR_PRED			5
 	"BR_PRED",		/* Specualtive branch predicted */
 };
 
@@ -921,6 +933,9 @@ ipc(void)
 	double secs, rate;
 	cpusetid_t cpuset_id;
 	cpuset_t cpuset_mask;
+#ifdef WITH_PMC
+	float f;
+#endif
 
 	if (totalsize % buffersize != 0)
 		xo_errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple "
@@ -1062,6 +1077,7 @@ ipc(void)
 			    (intmax_t)ts.tv_sec, (intmax_t)ts.tv_nsec);
 		}
 #ifdef WITH_PMC
+		/* Print baseline measured counters. */
 		if (!qflag && (benchmark_pmc != BENCHMARK_PMC_NONE)) {
 			for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
 				if (counterset[i] == NULL)
@@ -1070,6 +1086,37 @@ ipc(void)
 				xo_emit_field("V", counterset[i], "%s", "%ju",
 				    pmc_values[i]);
 			}
+		}
+		/*
+		 * Print out a few derived metrics that are easier to
+		 * calculate here than later.
+		 */
+		if (!qflag && (benchmark_pmc != BENCHMARK_PMC_NONE)) {
+			xo_emit("  {:CYCLES_PER_INSTRUCTION/%F}\n",
+			  (float)pmc_values[COUNTERSET_HEADER_CLOCK_CYCLES] /
+			  (float)pmc_values[COUNTERSET_HEADER_INSTR_EXECUTED]);
+		}
+		if (!qflag && (benchmark_pmc == BENCHMARK_PMC_DCACHE)) {
+			f = pmc_values[COUNTERSET_DCACHE_INDEX_L1D_CACHE] -
+			   pmc_values[COUNTERSET_DCACHE_INDEX_L1D_CACHE_REFILL];
+			f /= pmc_values[COUNTERSET_DCACHE_INDEX_L1D_CACHE];
+			xo_emit("  {:L1D_CACHE_HIT_RATE/%F}\n", f);
+
+			f = pmc_values[COUNTERSET_DCACHE_INDEX_L2D_CACHE] -
+			   pmc_values[COUNTERSET_DCACHE_INDEX_L2D_CACHE_REFILL];
+			f /= pmc_values[COUNTERSET_DCACHE_INDEX_L2D_CACHE];
+			xo_emit("  {:L2D_CACHE_HIT_RATE/%F}\n", f);
+		}
+		if (!qflag && (benchmark_pmc == BENCHMARK_PMC_INSTR)) {
+			f = pmc_values[COUNTERSET_INSTR_INDEX_L1I_CACHE] -
+			    pmc_values[COUNTERSET_INSTR_INDEX_L1I_CACHE_REFILL];
+			f /= pmc_values[COUNTERSET_INSTR_INDEX_L1I_CACHE];
+			xo_emit("  {:L1I_CACHE_HIT_RATE/%F}\n", f);
+
+			f = pmc_values[COUNTERSET_INSTR_INDEX_BR_PRED];
+			f /= pmc_values[COUNTERSET_INSTR_INDEX_BR_MIS_PRED] +
+			    pmc_values[COUNTERSET_INSTR_INDEX_BR_PRED];
+			xo_emit("  {:BR_PRED_RATE/%F}\n", f);
 		}
 #endif
 		if (!qflag) {
