@@ -207,9 +207,9 @@ io(const char *path)
 		/*
 		 * Allocate zero-filled memory for our I/O buffer.
 		 */
-		buf = mmap(NULL, buffersize, PROT_READ | PROT_WRITE, MAP_ANON,
-		    -1, 0);
-		if (buf == NULL)
+		buf = mmap(NULL, buffersize, PROT_READ | PROT_WRITE,
+		    MAP_ANON | MAP_PRIVATE, -1, 0);
+		if (buf == MAP_FAILED)
 			xo_err(EX_OSERR, "FAIL: mmap");
 
 		/*
