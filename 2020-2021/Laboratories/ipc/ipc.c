@@ -61,7 +61,7 @@
  */
 
 static unsigned int Bflag;	/* bare */
-static unsigned int rflag;	/* rusage */
+static unsigned int gflag;	/* getrusage */
 static unsigned int qflag;	/* quiet */
 static unsigned int sflag;	/* set socket-buffer sizes */
 static unsigned int vflag;	/* verbose */
@@ -413,7 +413,7 @@ usage(void)
 {
 
 	xo_error(
-	    "%s [-Bjrqsv] [-b buffersize] [-i pipe|local|tcp] [-n iterations]\n"
+	    "%s [-Bgjqsv] [-b buffersize] [-i pipe|local|tcp] [-n iterations]\n"
 	    "    [-p tcp_port]"
 #ifdef WITH_PMC
 	    " [-P arch|dcache|instr|tlbmem]"
@@ -427,6 +427,7 @@ usage(void)
   "\n"
   "Optional flags:\n"
   "    -B                     Run in bare mode: no preparatory activities\n"
+  "    -g                     Enable getrusage(2) collection\n"
   "    -i pipe|local|tcp      Select pipe, local sockets, or TCP (default: %s)\n"
   "    -j                     Output as JSON\n"
   "    -p tcp_port            Set TCP port number (default: %u)\n"
@@ -434,7 +435,6 @@ usage(void)
   "    -P arch|dcache|instr|tlbmem  Enable hardware performance counters\n"
 #endif
   "    -q                     Just run the benchmark, don't print stuff out\n"
-  "    -r                     Enable rusage collection\n"
   "    -s                     Set send/receive socket-buffer sizes to buffersize\n"
   "    -v                     Provide a verbose benchmark description\n"
   "    -b buffersize          Specify the buffer size (default: %ld)\n"
@@ -1031,7 +1031,7 @@ ipc(void)
 			(void)sleep(1);
 		}
 
-		if (rflag) {
+		if (gflag) {
 			if (getrusage(RUSAGE_SELF, &rusage_self_before) < 0)
 				xo_err(EX_OSERR, "FAIL: getrusage(SELF)");
 			if (getrusage(RUSAGE_CHILDREN,
@@ -1067,7 +1067,7 @@ ipc(void)
 			assert(0);
 		}
 
-		if (rflag) {
+		if (gflag) {
 			if (getrusage(RUSAGE_SELF, &rusage_self_after) < 0)
 				xo_err(EX_OSERR, "FAIL: getrusage(SELF)");
 			if (getrusage(RUSAGE_CHILDREN,
@@ -1140,7 +1140,7 @@ ipc(void)
 			xo_emit("  {:BR_PRED_RATE/%F}\n", f);
 		}
 #endif
-		if (!qflag && rflag) {
+		if (!qflag && gflag) {
 			/* User time. */
 			timersub(&rusage_self_after.ru_utime,
 			    &rusage_self_before.ru_utime, &tv_self);
@@ -1210,7 +1210,7 @@ main(int argc, char *argv[])
 
 	buffersize = BUFFERSIZE;
 	totalsize = TOTALSIZE;
-	while ((ch = getopt(argc, argv, "Bb:i:jn:p:P:rqst:v"
+	while ((ch = getopt(argc, argv, "Bb:gi:jn:p:P:qst:v"
 #ifdef WITH_PMC
 	"P:"
 #endif
@@ -1258,8 +1258,8 @@ main(int argc, char *argv[])
 				usage();
 			break;
 #endif
-		case 'r':
-			rflag++;
+		case 'g':
+			gflag++;
 			break;
 
 		case 'q':
