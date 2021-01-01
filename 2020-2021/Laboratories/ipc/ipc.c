@@ -61,6 +61,7 @@
  */
 
 static unsigned int Bflag;	/* bare */
+static unsigned int rflag;	/* rusage */
 static unsigned int qflag;	/* quiet */
 static unsigned int sflag;	/* set socket-buffer sizes */
 static unsigned int vflag;	/* verbose */
@@ -412,7 +413,7 @@ usage(void)
 {
 
 	xo_error(
-	    "%s [-Bjqsv] [-b buffersize] [-i pipe|local|tcp] [-n iterations]\n"
+	    "%s [-Bjrqsv] [-b buffersize] [-i pipe|local|tcp] [-n iterations]\n"
 	    "    [-p tcp_port]"
 #ifdef WITH_PMC
 	    " [-P arch|dcache|instr|tlbmem]"
@@ -433,6 +434,7 @@ usage(void)
   "    -P arch|dcache|instr|tlbmem  Enable hardware performance counters\n"
 #endif
   "    -q                     Just run the benchmark, don't print stuff out\n"
+  "    -r                     Enable rusage collection\n"
   "    -s                     Set send/receive socket-buffer sizes to buffersize\n"
   "    -v                     Provide a verbose benchmark description\n"
   "    -b buffersize          Specify the buffer size (default: %ld)\n"
@@ -927,6 +929,9 @@ print_configuration(void)
 static void
 ipc(void)
 {
+	struct rusage rusage_self_before, rusage_children_before;
+	struct rusage rusage_self_after, rusage_children_after;
+	struct timeval tv_self, tv_children, tv_total;
 	struct timespec ts;
 	void *readbuf, *writebuf;
 	int i, iteration, readfd, writefd;
@@ -1026,6 +1031,14 @@ ipc(void)
 			(void)sleep(1);
 		}
 
+		if (rflag) {
+			if (getrusage(RUSAGE_SELF, &rusage_self_before) < 0)
+				xo_err(EX_OSERR, "FAIL: getrusage(SELF)");
+			if (getrusage(RUSAGE_CHILDREN,
+			    &rusage_children_before) < 0)
+				xo_err(EX_OSERR, "FAIL: getrusage(CHILDREN)");
+		}
+
 		/*
 		 * Perform the actual benchmark; timing is done within
 		 * different versions as they behave quite differently.  Each
@@ -1052,6 +1065,14 @@ ipc(void)
 
 		default:
 			assert(0);
+		}
+
+		if (rflag) {
+			if (getrusage(RUSAGE_SELF, &rusage_self_after) < 0)
+				xo_err(EX_OSERR, "FAIL: getrusage(SELF)");
+			if (getrusage(RUSAGE_CHILDREN,
+			    &rusage_children_after) < 0)
+				xo_err(EX_OSERR, "FAIL: get_rusage(CHILDREN)");
 		}
 
 		/* Seconds with fractional component. */
@@ -1119,6 +1140,25 @@ ipc(void)
 			xo_emit("  {:BR_PRED_RATE/%F}\n", f);
 		}
 #endif
+		if (!qflag && rflag) {
+			/* User time. */
+			timersub(&rusage_self_after.ru_utime,
+			    &rusage_self_before.ru_utime, &tv_self);
+			timersub(&rusage_children_after.ru_utime,
+			    &rusage_children_before.ru_utime, &tv_children);
+			timeradd(&tv_self, &tv_children, &tv_total);
+			xo_emit("  utime: {:utime/%jd.%06jd} seconds\n",
+			    tv_total.tv_sec, tv_total.tv_usec);
+
+			/* System time. */
+			timersub(&rusage_self_after.ru_stime,
+			    &rusage_self_before.ru_stime, &tv_self);
+			timersub(&rusage_children_after.ru_stime,
+			    &rusage_children_before.ru_stime, &tv_children);
+			timeradd(&tv_self, &tv_children, &tv_total);
+			xo_emit("  stime: {:stime/%jd.%06jd} seconds\n",
+			    tv_total.tv_sec, tv_total.tv_usec);
+		}
 		if (!qflag) {
 			xo_close_instance("datum");
 			xo_flush();
@@ -1158,7 +1198,7 @@ main(int argc, char *argv[])
 
 	buffersize = BUFFERSIZE;
 	totalsize = TOTALSIZE;
-	while ((ch = getopt(argc, argv, "Bb:i:jn:p:P:qst:v"
+	while ((ch = getopt(argc, argv, "Bb:i:jn:p:P:rqst:v"
 #ifdef WITH_PMC
 	"P:"
 #endif
@@ -1206,6 +1246,9 @@ main(int argc, char *argv[])
 				usage();
 			break;
 #endif
+		case 'r':
+			rflag++;
+			break;
 
 		case 'q':
 			qflag++;
