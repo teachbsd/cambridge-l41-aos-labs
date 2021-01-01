@@ -28,6 +28,7 @@
 #include <sys/cpuset.h>
 #include <sys/mman.h>
 #include <sys/sysctl.h>
+#include <sys/resource.h>
 #include <sys/time.h>
 
 #include <fcntl.h>
@@ -54,6 +55,7 @@
 static unsigned int Bflag;	/* bare */
 static unsigned int cflag;	/* create */
 static unsigned int dflag;	/* O_DIRECT */
+static unsigned int gflag;	/* getrusage */
 static unsigned int qflag;	/* quiet */
 static unsigned int rflag;	/* read() */
 static unsigned int sflag;	/* fsync() */
@@ -83,6 +85,7 @@ usage(void)
   "Optional flags:\n"
   "    -B              Run in bare mode: no preparatory activities\n"
   "    -d              Set O_DIRECT flag to bypass buffer cache\n"
+  "    -g              Enable getrusage(2) collection\n"
   "    -j              Output as JSON\n"
   "    -q              Just run the benchmark, don't print stuff out\n"
   "    -s              Call fsync() on the file descriptor when complete\n"
@@ -161,6 +164,9 @@ print_configuration(const char *path)
 static void
 io(const char *path)
 {
+	struct rusage rusage_self_before, rusage_children_before;
+	struct rusage rusage_self_after, rusage_children_after;
+	struct timeval tv_self, tv_children, tv_total;
 	struct timespec ts_start, ts_finish;
 	long blockcount, i, iteration;
 	char *buf;
@@ -250,6 +256,14 @@ io(const char *path)
 			(void)sleep(1);
 		}
 
+		if (gflag) {
+			if (getrusage(RUSAGE_SELF, &rusage_self_before) < 0)
+				xo_err(EX_OSERR, "FAIL: getrusage(SELF)");
+			if (getrusage(RUSAGE_CHILDREN,
+			    &rusage_children_before) < 0)
+				xo_err(EX_OSERR, "FAIL: getrusage(CHILDREN)");
+		}
+
 		/*
 		 * Run the benchmark before generating any output so that the
 		 * act of generating output doesn't, itself, perturb the
@@ -290,6 +304,15 @@ io(const char *path)
 			xo_errx(EX_OSERR, "FAIL: clock_gettime");
 
 		timespecsub(&ts_finish, &ts_start, &ts_finish);
+
+		if (rflag) {
+			if (getrusage(RUSAGE_SELF, &rusage_self_after) < 0)
+				xo_err(EX_OSERR, "FAIL: getrusage(SELF)");
+			if (getrusage(RUSAGE_CHILDREN,
+			    &rusage_children_after) < 0)
+			xo_err(EX_OSERR, "FAIL: get_rusage(CHILDREN)");
+		}
+
 		/* Seconds with fractional component. */
 		secs = (float)ts_finish.tv_sec + (float)ts_finish.tv_nsec /
 		    1000000000;
@@ -317,6 +340,39 @@ io(const char *path)
 			xo_emit("  time: {:time/%jd.%09jd} seconds\n",
 			    (intmax_t)ts_finish.tv_sec,
 			    (intmax_t)ts_finish.tv_nsec);
+		}
+		if (!qflag && gflag) {
+			/* User time. */
+			timersub(&rusage_self_after.ru_utime,
+			    &rusage_self_before.ru_utime, &tv_self);
+			timersub(&rusage_children_after.ru_utime,
+			    &rusage_children_before.ru_utime, &tv_children);
+			timeradd(&tv_self, &tv_children, &tv_total);
+			xo_emit("  utime: {:utime/%jd.%06jd} seconds\n",
+			    tv_total.tv_sec, tv_total.tv_usec);
+
+			/* System time. */
+			timersub(&rusage_self_after.ru_stime,
+			    &rusage_self_before.ru_stime, &tv_self);
+			timersub(&rusage_children_after.ru_stime,
+			    &rusage_children_before.ru_stime, &tv_children);
+			timeradd(&tv_self, &tv_children, &tv_total);
+			xo_emit("  stime: {:stime/%jd.%06jd} seconds\n",
+			    tv_total.tv_sec, tv_total.tv_usec);
+
+			/* Blocks read and written. */
+			xo_emit("  inblock: {:inblock/%ld} blocks\n",
+			    (rusage_self_after.ru_inblock -
+			    rusage_self_before.ru_inblock) +
+			    (rusage_children_after.ru_inblock -
+			    rusage_children_before.ru_inblock));
+			xo_emit("  oublock: {:oublock/%ld} blocks\n",
+			    (rusage_self_after.ru_oublock -
+			    rusage_self_before.ru_oublock) +
+			    (rusage_children_after.ru_oublock -
+			    rusage_children_before.ru_oublock));
+		}
+		if (!qflag){
 			xo_close_instance("datum");
 			xo_flush();
 		}
@@ -352,7 +408,7 @@ main(int argc, char *argv[])
 	iterations = ITERATIONS;
 	totalsize = TOTALSIZE;
 	path = NULL;
-	while ((ch = getopt(argc, argv, "Bb:cdjn:qrst:vw")) != -1) {
+	while ((ch = getopt(argc, argv, "Bb:cdgjn:qrst:vw")) != -1) {
 		switch (ch) {
 		case 'B':
 			Bflag++;
@@ -370,6 +426,10 @@ main(int argc, char *argv[])
 
 		case 'd':
 			dflag++;
+			break;
+
+		case 'g':
+			gflag++;
 			break;
 
 		case 'j':
