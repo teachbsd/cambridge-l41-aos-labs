@@ -1158,6 +1158,18 @@ ipc(void)
 			timeradd(&tv_self, &tv_children, &tv_total);
 			xo_emit("  stime: {:stime/%jd.%06jd} seconds\n",
 			    tv_total.tv_sec, tv_total.tv_usec);
+
+			/* Messages sent and received .*/
+			xo_emit("  msgsnd: {:msgsnd/%ld} messages\n",
+			    (rusage_self_after.ru_msgsnd -
+			    rusage_self_before.ru_msgsnd) +
+			    (rusage_children_after.ru_msgsnd -
+			    rusage_children_before.ru_msgsnd));
+			xo_emit("  msgrcv: {:msgrcv/%ld} messages\n",
+			    (rusage_self_after.ru_msgrcv -
+			    rusage_self_before.ru_msgrcv) +
+			    (rusage_children_after.ru_msgrcv -
+			    rusage_children_before.ru_msgrcv));
 		}
 		if (!qflag) {
 			xo_close_instance("datum");
