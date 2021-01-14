@@ -936,7 +936,6 @@ ipc(void)
 	void *readbuf, *writebuf;
 	int i, iteration, readfd, writefd;
 	double secs, rate;
-	cpusetid_t cpuset_id;
 	cpuset_t cpuset_mask;
 #ifdef WITH_PMC
 	float f;
@@ -953,10 +952,8 @@ ipc(void)
 	 * For the purposes of lab simplicity, pin the benchmark (this process
 	 * and all its children processes) to CPU 0.
 	 */
-	if (cpuset(&cpuset_id) < 0)
-		xo_err(EX_OSERR, "FAIL: cpuset");
 	CPU_ZERO(&cpuset_mask);
-	CPU_SET(1, &cpuset_mask);
+	CPU_SET(0, &cpuset_mask);
 	if (cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1,
 	    sizeof(cpuset_mask), &cpuset_mask) < 0)
 		xo_err(EX_OSERR, "FAIL: cpuset_setaffinity");
