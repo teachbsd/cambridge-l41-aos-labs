@@ -967,6 +967,22 @@ ipc(void)
 #endif
 
 	/*
+	 * Allocate zero-filled memory for our IPC buffer.  Explicitly fill so
+	 * as to take page zeroing traps now rather than during the benchmark
+	 * loop itself.
+	 */
+	readbuf = mmap(NULL, buffersize, PROT_READ | PROT_WRITE,
+	    MAP_ANON, -1, 0);
+	if (readbuf == NULL)
+		xo_err(EX_OSERR, "FAIL: mmap");
+	writebuf = mmap(NULL, buffersize, PROT_READ | PROT_WRITE,
+	memset(readbuf, 0, buffersize);
+	    MAP_ANON, -1, 0);
+	if (writebuf == NULL)
+		xo_err(EX_OSERR, "FAIL: mmap");
+	memset(writebuf, 0, buffersize);
+
+	/*
 	 * Configuration information first, if requested (but only once).
 	 */
 	if (!qflag && vflag)
@@ -986,17 +1002,6 @@ ipc(void)
 		if (benchmark_pmc != BENCHMARK_PMC_NONE)
 			pmc_setup_run();
 #endif
-		/*
-		 * Allocate zero-filled memory for our IPC buffer.
-		 */
-		readbuf = mmap(NULL, buffersize, PROT_READ | PROT_WRITE,
-		    MAP_ANON, -1, 0);
-		if (readbuf == NULL)
-			xo_err(EX_OSERR, "FAIL: mmap");
-		writebuf = mmap(NULL, buffersize, PROT_READ | PROT_WRITE,
-		    MAP_ANON, -1, 0);
-		if (writebuf == NULL)
-			xo_err(EX_OSERR, "FAIL: mmap");
 
 		/*
 		 * Allocate and connect a suitable IPC object handle pair.
