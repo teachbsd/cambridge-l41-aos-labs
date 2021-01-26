@@ -975,8 +975,8 @@ ipc(void)
 	    MAP_ANON, -1, 0);
 	if (readbuf == NULL)
 		xo_err(EX_OSERR, "FAIL: mmap");
-	writebuf = mmap(NULL, buffersize, PROT_READ | PROT_WRITE,
 	memset(readbuf, 0, buffersize);
+	writebuf = mmap(NULL, buffersize, PROT_READ | PROT_WRITE,
 	    MAP_ANON, -1, 0);
 	if (writebuf == NULL)
 		xo_err(EX_OSERR, "FAIL: mmap");
