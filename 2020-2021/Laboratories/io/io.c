@@ -318,7 +318,7 @@ io(const char *path)
 
 		timespecsub(&ts_finish, &ts_start, &ts_finish);
 
-		if (rflag) {
+		if (gflag) {
 			if (getrusage(RUSAGE_SELF, &rusage_self_after) < 0)
 				xo_err(EX_OSERR, "FAIL: getrusage(SELF)");
 			if (getrusage(RUSAGE_CHILDREN,
