@@ -101,41 +101,41 @@ usage(void)
 static void
 print_configuration(const char *path)
 {
-        char buffer[80];
-        int integer;
-        unsigned long unsignedlong;
+	char buffer[80];
+	int integer;
+	unsigned long unsignedlong;
 	unsigned long pagesizes[MAXPAGESIZES];
-        size_t len;
+	size_t len;
 	int i;
 
-        xo_open_container("host_configuration");
-        xo_emit("Host configuration:\n");
+	xo_open_container("host_configuration");
+	xo_emit("Host configuration:\n");
 
-        /* hw.machine */
-        len = sizeof(buffer);
-        if (sysctlbyname("hw.machine", buffer, &len, NULL, 0) < 0)
-                xo_err(EX_OSERR, "sysctlbyname: hw.machine");
-        buffer[sizeof(buffer)-1] = '\0';
-        xo_emit("  hw.machine: {:hw.machine/%s}\n", buffer);
+	/* hw.machine */
+	len = sizeof(buffer);
+	if (sysctlbyname("hw.machine", buffer, &len, NULL, 0) < 0)
+		xo_err(EX_OSERR, "sysctlbyname: hw.machine");
+	buffer[sizeof(buffer)-1] = '\0';
+	xo_emit("  hw.machine: {:hw.machine/%s}\n", buffer);
 
-        /* hw.model */
-        len = sizeof(buffer);
-        if (sysctlbyname("hw.model", buffer, &len, NULL, 0) < 0)
-                xo_err(EX_OSERR, "sysctlbyname: hw.model");
-        buffer[sizeof(buffer)-1] = '\0';
-        xo_emit("  hw.model: {:hw.model/%s}\n", buffer);
+	/* hw.model */
+	len = sizeof(buffer);
+	if (sysctlbyname("hw.model", buffer, &len, NULL, 0) < 0)
+		xo_err(EX_OSERR, "sysctlbyname: hw.model");
+	buffer[sizeof(buffer)-1] = '\0';
+	xo_emit("  hw.model: {:hw.model/%s}\n", buffer);
 
-        /* hw.ncpu */
-        len = sizeof(integer);
-        if (sysctlbyname("hw.ncpu", &integer, &len, NULL, 0) < 0)
-                xo_err(EX_OSERR, "sysctlbyname: hw.ncpu");
-        xo_emit("  hw.ncpu: {:hw.ncpu/%d}\n", integer);
+	/* hw.ncpu */
+	len = sizeof(integer);
+	if (sysctlbyname("hw.ncpu", &integer, &len, NULL, 0) < 0)
+		xo_err(EX_OSERR, "sysctlbyname: hw.ncpu");
+	xo_emit("  hw.ncpu: {:hw.ncpu/%d}\n", integer);
 
-        /* hw.physmem */
-        len = sizeof(unsignedlong);
-        if (sysctlbyname("hw.physmem", &unsignedlong, &len, NULL, 0) < 0)
-                xo_err(EX_OSERR, "sysctlbyname: hw.physmem");
-        xo_emit("  hw.physmem: {:hw.physmem/%lu}\n", unsignedlong);
+	/* hw.physmem */
+	len = sizeof(unsignedlong);
+	if (sysctlbyname("hw.physmem", &unsignedlong, &len, NULL, 0) < 0)
+		xo_err(EX_OSERR, "sysctlbyname: hw.physmem");
+	xo_emit("  hw.physmem: {:hw.physmem/%lu}\n", unsignedlong);
 
 	/* hw.pagesizes */
 	len = sizeof(pagesizes);
@@ -150,13 +150,13 @@ print_configuration(const char *path)
 	xo_emit("\n");
 	xo_close_container("hw.pagesizes");
 
-        /* hw.cpufreq.arm_freq */
-        len = sizeof(integer);
-        if (sysctlbyname("hw.cpufreq.arm_freq", &integer, &len, NULL, 0) < 0)
-                xo_err(EX_OSERR, "sysctlbyname: hw.cpufreq.arm_freq");
-        xo_emit("  hw.cpufreq.arm_freq: {:hw.cpufreq.arm_freq/%lu}\n",
-            integer);
-        xo_close_container("host_configuration");
+	/* hw.cpufreq.arm_freq */
+	len = sizeof(integer);
+	if (sysctlbyname("hw.cpufreq.arm_freq", &integer, &len, NULL, 0) < 0)
+		xo_err(EX_OSERR, "sysctlbyname: hw.cpufreq.arm_freq");
+	xo_emit("  hw.cpufreq.arm_freq: {:hw.cpufreq.arm_freq/%lu}\n",
+	    integer);
+	xo_close_container("host_configuration");
 
 	xo_open_container("benchmark_configuration");
 	xo_emit("Benchmark configuration:\n");
