@@ -67,6 +67,8 @@ static long iterations;		/* number of iterations  to perform */
 static long totalsize;		/* total I/O size; multiple of buffer size */
 static long blockcount;		/* derived number of blocks. */
 
+int	__sys_clock_gettime(__clockid_t, struct timespec *ts);
+
 /*
  * Print usage message and exit.
  */
@@ -288,8 +290,12 @@ io(const char *path)
 		 * make sure that you look only at clock_gettime() system
 		 * calls from the benchmark as other threads in the system may
 		 * use the call as well!
+		 *
+		 * NB2: Because of vdso optimisations, we now need to directly
+		 * call the system call, or time queries are serviced in
+		 * userspace.
 		 */
-		if (clock_gettime(CLOCK_REALTIME, &ts_start) < 0)
+		if (__sys_clock_gettime(CLOCK_REALTIME, &ts_start) < 0)
 			xo_errx(EX_OSERR, "FAIL: clock_gettime");
 
 		/*
@@ -313,7 +319,7 @@ io(const char *path)
 		 * HERE ENDS THE BENCHMARK.
 		 */
 
-		if (clock_gettime(CLOCK_REALTIME, &ts_finish) < 0)
+		if (__sys_clock_gettime(CLOCK_REALTIME, &ts_finish) < 0)
 			xo_errx(EX_OSERR, "FAIL: clock_gettime");
 
 		timespecsub(&ts_finish, &ts_start, &ts_finish);
