@@ -921,6 +921,7 @@ print_configuration(void)
 	    ipc_type_to_string(ipc_type));
 	xo_emit("  pmctype: {:pmctype/%s}\n",
 	    benchmark_pmc_to_string(benchmark_pmc));
+	xo_emit("  iterations: {:iterations/%ld}\n", iterations);
 	xo_close_container("benchmark_configuration");
 
 	xo_flush();

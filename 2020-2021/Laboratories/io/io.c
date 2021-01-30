@@ -151,6 +151,7 @@ print_configuration(const char *path)
 	xo_emit("  operation: {:operation/%s}\n", cflag ?  "create" :
 	    (wflag ? "write" : "read"));
 	xo_emit("  path: {:path/%s}\n", path);
+	xo_emit("  iterations: {:iterations/%ld}\n", iterations);
 	xo_close_container("benchmark_configuration");
 
 	xo_flush();
