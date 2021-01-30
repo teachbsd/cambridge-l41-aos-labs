@@ -871,7 +871,9 @@ print_configuration(void)
 	char buffer[80];
 	int integer;
 	unsigned long unsignedlong;
+	unsigned long pagesizes[MAXPAGESIZES];
 	size_t len;
+	int i;
 
 	xo_open_container("host_configuration");
 	xo_emit("Host configuration:\n");
@@ -901,6 +903,19 @@ print_configuration(void)
 	if (sysctlbyname("hw.physmem", &unsignedlong, &len, NULL, 0) < 0)
 		xo_err(EX_OSERR, "sysctlbyname: hw.physmem");
 	xo_emit("  hw.physmem: {:hw.physmem/%lu}\n", unsignedlong);
+
+	/* hw.pagesizes */
+	len = sizeof(pagesizes);
+	if (sysctlbyname("hw.pagesizes", &pagesizes, &len, NULL, 0) < 0)
+		xo_err(EX_OSERR, "sysctlbyname: hw.pagesizes");
+	if (len < sizeof(pagesizes[0]))
+		xo_err(EX_OSERR, "sysctlbyname: hwpagesizes unexpectes size");
+	xo_open_container("hw.pagesizes");
+	xo_emit("  hw.pagesizes: {:pagesize/%ld}", pagesizes[0]);
+	for (i = 1; i < len/sizeof(pagesizes[0]); i++)
+		xo_emit(", {:pagesize/%ld}", pagesizes[i]);
+	xo_emit("\n");
+	xo_close_container("hw.pagesizes");
 
 	/* hw.cpufreq.arm_freq */
 	len = sizeof(integer);
