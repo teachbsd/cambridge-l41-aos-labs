@@ -1,9 +1,9 @@
-all: io-static io-dynamic
+all: io-benchmark
 
 io-static: io.c
 	cc -Wall -o ${.TARGET} -DPROGNAME=\"${.TARGET}\" io.c -static -lxo \
 	    -lutil
-io-dynamic: io.c
+io-dynamic io-benchmark: io.c
 	cc -Wall -o ${.TARGET} -DPROGNAME=\"${.TARGET}\" io.c -dynamic -lxo \
 	    -lutil
 
