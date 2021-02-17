@@ -1203,13 +1203,15 @@ ipc(void)
 #endif
 		close(readfd);
 		close(writefd);
-		munmap(readbuf, buffersize);
-		munmap(writebuf, buffersize);
 	}
 	if (!qflag) {
 		xo_close_list("benchmark_samples");
 		xo_finish();
 	}
+	if (munmap(readbuf, buffersize) < 0)
+		xo_err(EX_OSERR, "FAIL: munmap");
+	if (munmap(writebuf, buffersize) < 0)
+		xo_err(EX_OSERR, "FAIL: munmap");
 }
 
 /*
