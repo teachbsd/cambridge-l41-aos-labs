@@ -196,6 +196,8 @@ static uint64_t pmc_values[COUNTERSET_MAX_EVENTS];
 
 static const char **counterset;		/* The actual counter set in use. */
 
+int	__sys_clock_gettime(__clockid_t, struct timespec *ts);
+
 static void
 pmc_setup_run(void)
 {
@@ -482,8 +484,8 @@ sender(struct sender_argument *sap)
 	ssize_t len;
 	long write_sofar;
 
-	if (clock_gettime(CLOCK_REALTIME, &sap->sa_starttime) < 0)
-		xo_err(EX_OSERR, "FAIL: clock_gettime");
+	if (__sys_clock_gettime(CLOCK_REALTIME, &sap->sa_starttime) < 0)
+		xo_err(EX_OSERR, "FAIL: __sys_clock_gettime");
 #ifdef WITH_PMC
 	if (benchmark_pmc != BENCHMARK_PMC_NONE)
 		pmc_begin();
@@ -538,8 +540,8 @@ receiver(int readfd, long blockcount, void *buf)
 	if (benchmark_pmc != BENCHMARK_PMC_NONE)
 		pmc_end();
 #endif
-	if (clock_gettime(CLOCK_REALTIME, &finishtime) < 0)
-		xo_err(EX_OSERR, "FAIL: clock_gettime");
+	if (__sys_clock_gettime(CLOCK_REALTIME, &finishtime) < 0)
+		xo_err(EX_OSERR, "FAIL: __sys_clock_gettime");
 	return (finishtime);
 }
 
@@ -661,8 +663,8 @@ do_1thread(int readfd, int writefd, long blockcount, void *readbuf,
 	FD_ZERO(&fdset_write);
 	FD_SET(writefd, &fdset_write);
 
-	if (clock_gettime(CLOCK_REALTIME, &starttime) < 0)
-		xo_err(EX_OSERR, "FAIL: clock_gettime");
+	if (__sys_clock_gettime(CLOCK_REALTIME, &starttime) < 0)
+		xo_err(EX_OSERR, "FAIL: __sys_clock_gettime");
 #ifdef WITH_PMC
 	if (benchmark_pmc != BENCHMARK_PMC_NONE)
 		pmc_begin();
@@ -719,8 +721,8 @@ do_1thread(int readfd, int writefd, long blockcount, void *readbuf,
 	if (benchmark_pmc != BENCHMARK_PMC_NONE)
 		pmc_end();
 #endif
-	if (clock_gettime(CLOCK_REALTIME, &finishtime) < 0)
-		xo_err(EX_OSERR, "FAIL: clock_gettime");
+	if (__sys_clock_gettime(CLOCK_REALTIME, &finishtime) < 0)
+		xo_err(EX_OSERR, "FAIL: __sys_clock_gettime");
 	timespecsub(&finishtime, &starttime, &finishtime);
 	return (finishtime);
 }
