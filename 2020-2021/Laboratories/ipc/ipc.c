@@ -62,6 +62,7 @@
 
 static unsigned int Bflag;	/* bare */
 static unsigned int gflag;	/* getrusage */
+static unsigned int jflag;	/* JSON */
 static unsigned int qflag;	/* quiet */
 static unsigned int sflag;	/* set socket-buffer sizes */
 static unsigned int vflag;	/* verbose */
@@ -1123,17 +1124,23 @@ ipc(void)
 			for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
 				if (counterset[i] == NULL)
 					continue;
-				xo_emit("  ");
-				xo_emit_field("V", counterset[i], "%s", "%ju",
-				    pmc_values[i]);
+				if (jflag)
+					xo_emit_field("V", counterset[i],
+					  NULL, "%ju", pmc_values[i]);
+				else
+					xo_emit_field("V", counterset[i],
+					    "  %s: %ju\n", NULL, counterset[i],
+					    pmc_values[i]);
 			}
 		}
+
 		/*
 		 * Print out a few derived metrics that are easier to
 		 * calculate here than later.
 		 */
 		if (!qflag && (benchmark_pmc != BENCHMARK_PMC_NONE)) {
-			xo_emit("  {:CYCLES_PER_INSTRUCTION/%F}\n",
+			xo_emit("  CYCLES_PER_INSTRUCTION: "
+			  "{:CYCLES_PER_INSTRUCTION/%F}\n",
 			  (float)pmc_values[COUNTERSET_HEADER_CLOCK_CYCLES] /
 			  (float)pmc_values[COUNTERSET_HEADER_INSTR_EXECUTED]);
 		}
@@ -1141,12 +1148,14 @@ ipc(void)
 			f = pmc_values[COUNTERSET_DCACHE_INDEX_L1D_CACHE] -
 			   pmc_values[COUNTERSET_DCACHE_INDEX_L1D_CACHE_REFILL];
 			f /= pmc_values[COUNTERSET_DCACHE_INDEX_L1D_CACHE];
-			xo_emit("  {:L1D_CACHE_HIT_RATE/%F}\n", f);
+			xo_emit("  L1D_CACHE_HIT_RATE: "
+			   "{:L1D_CACHE_HIT_RATE/%F}\n", f);
 
 			f = pmc_values[COUNTERSET_DCACHE_INDEX_L2D_CACHE] -
 			   pmc_values[COUNTERSET_DCACHE_INDEX_L2D_CACHE_REFILL];
 			f /= pmc_values[COUNTERSET_DCACHE_INDEX_L2D_CACHE];
-			xo_emit("  {:L2D_CACHE_HIT_RATE/%F}\n", f);
+			xo_emit("  L2D_CACHE_HIT_RATE: "
+			   "{:L2D_CACHE_HIT_RATE/%F}\n", f);
 		}
 		if (!qflag && (benchmark_pmc == BENCHMARK_PMC_INSTR)) {
 			f = pmc_values[COUNTERSET_INSTR_INDEX_L1I_CACHE] -
@@ -1255,6 +1264,7 @@ main(int argc, char *argv[])
 			break;
 
 		case 'j':
+			jflag++;
 			xo_set_style(NULL, XO_STYLE_JSON);
 			xo_set_flags(NULL, XOF_PRETTY);
 			break;
