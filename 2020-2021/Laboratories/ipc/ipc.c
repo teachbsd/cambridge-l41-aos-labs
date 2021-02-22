@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2015, 2020 Robert N. M. Watson
+ * Copyright (c) 2015, 2020-2021 Robert N. M. Watson
  * Copyright (c) 2015 Bjoern A. Zeeb
  * All rights reserved.
  *
@@ -108,7 +108,7 @@ static long iterations = ITERATIONS;	/* Number of iterations */
 #define	TOTALSIZE	(16 * 1024 * 1024UL)
 static long totalsize = TOTALSIZE;	/* total I/O size */
 
-static long blockcount;			/* Derived number of blocks. */
+static long msgcount;			/* Derived number of messages. */
 
 #define	max(x, y)	((x) > (y) ? (x) : (y))
 #define	min(x, y)	((x) < (y) ? (x) : (y))
@@ -475,7 +475,7 @@ usage(void)
 struct sender_argument {
 	struct timespec	 sa_starttime;	/* Sender stores start time here. */
 	int		 sa_writefd;	/* Caller provides send fd here. */
-	long		 sa_blockcount;	/* Caller provides block count here. */
+	long		 sa_msgcount;	/* Caller provides msg count here. */
 	void		*sa_buffer;	/* Caller provides buffer here. */
 };
 
@@ -512,7 +512,7 @@ sender(struct sender_argument *sap)
 }
 
 static struct timespec
-receiver(int readfd, long blockcount, void *buf)
+receiver(int readfd, long msgcount, void *buf)
 {
 	struct timespec finishtime;
 	ssize_t len;
@@ -564,7 +564,7 @@ second_thread(void *arg)
 static struct sender_argument sa;
 
 static struct timespec
-do_2thread(int readfd, int writefd, long blockcount, void *readbuf,
+do_2thread(int readfd, int writefd, long msgcount, void *readbuf,
     void *writebuf)
 {
 	struct timespec finishtime;
@@ -575,11 +575,11 @@ do_2thread(int readfd, int writefd, long blockcount, void *readbuf,
 	 * no need to do anything special.
 	 */
 	sa.sa_writefd = writefd;
-	sa.sa_blockcount = blockcount;
+	sa.sa_msgcount = msgcount;
 	sa.sa_buffer = writebuf;
 	if (pthread_create(&thread, NULL, second_thread, &sa) < 0)
 		xo_err(EX_OSERR, "FAIL: pthread_create");
-	finishtime = receiver(readfd, blockcount, readbuf);
+	finishtime = receiver(readfd, msgcount, readbuf);
 	if (pthread_join(thread, NULL) < 0)
 		xo_err(EX_OSERR, "FAIL: pthread_join");
 	timespecsub(&finishtime, &sa.sa_starttime, &finishtime);
@@ -587,7 +587,7 @@ do_2thread(int readfd, int writefd, long blockcount, void *readbuf,
 }
 
 static struct timespec
-do_2proc(int readfd, int writefd, long blockcount, void *readbuf,
+do_2proc(int readfd, int writefd, long msgcount, void *readbuf,
     void *writebuf)
 {
 	struct sender_argument *sap;
@@ -605,7 +605,7 @@ do_2proc(int readfd, int writefd, long blockcount, void *readbuf,
 	if (minherit(sap, getpagesize(), INHERIT_SHARE) < 0)
 		xo_err(EX_OSERR, "minherit");
 	sap->sa_writefd = writefd;
-	sap->sa_blockcount = blockcount;
+	sap->sa_msgcount = msgcount;
 	sap->sa_buffer = writebuf;
 	pid = fork();
 	if (pid == 0) {
@@ -616,7 +616,7 @@ do_2proc(int readfd, int writefd, long blockcount, void *readbuf,
 			sleep(1);
 		_exit(0);
 	}
-	finishtime = receiver(readfd, blockcount, readbuf);
+	finishtime = receiver(readfd, msgcount, readbuf);
 	if ((pid2 = waitpid(pid, NULL, 0)) < 0)
 		xo_err(EX_OSERR, "FAIL: waitpid");
 	if (pid2 != pid)
@@ -637,7 +637,7 @@ do_2proc(int readfd, int writefd, long blockcount, void *readbuf,
  * descriptor?  Pipes appear not to offer a way to do this.
  */
 static struct timespec
-do_1thread(int readfd, int writefd, long blockcount, void *readbuf,
+do_1thread(int readfd, int writefd, long msgcount, void *readbuf,
     void *writebuf)
 {
 	struct timespec starttime, finishtime;
@@ -932,7 +932,7 @@ print_configuration(void)
 	xo_emit("Benchmark configuration:\n");
 	xo_emit("  buffersize: {:buffersize/%ld}\n", buffersize);
 	xo_emit("  totalsize: {:totalsize/%ld}\n", totalsize);
-	xo_emit("  blockcount: {:blockcount/%ld}\n", blockcount);
+	xo_emit("  msgcount: {:msgcount/%ld}\n", msgcount);
 	xo_emit("  mode: {:mode/%s}\n",
 	    benchmark_mode_to_string(benchmark_mode));
 	xo_emit("  ipctype: {:ipctype/%s}\n",
@@ -963,8 +963,8 @@ ipc(void)
 	if (totalsize % buffersize != 0)
 		xo_errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple "
 		    "of buffersize (%ld)", totalsize, buffersize);
-	blockcount = totalsize / buffersize;
-	if (blockcount < 0)
+	msgcount = totalsize / buffersize;
+	if (msgcount < 0)
 		xo_errx(EX_USAGE, "FAIL: negative block count");
 
 	/*
@@ -1070,17 +1070,17 @@ ipc(void)
 		 */
 		switch (benchmark_mode) {
 		case BENCHMARK_MODE_1THREAD:
-			ts = do_1thread(readfd, writefd, blockcount, readbuf,
+			ts = do_1thread(readfd, writefd, msgcount, readbuf,
 			    writebuf);
 			break;
 
 		case BENCHMARK_MODE_2THREAD:
-			ts = do_2thread(readfd, writefd, blockcount, readbuf,
+			ts = do_2thread(readfd, writefd, msgcount, readbuf,
 			    writebuf);
 			break;
 
 		case BENCHMARK_MODE_2PROC:
-			ts = do_2proc(readfd, writefd, blockcount, readbuf,
+			ts = do_2proc(readfd, writefd, msgcount, readbuf,
 			    writebuf);
 			break;
 
