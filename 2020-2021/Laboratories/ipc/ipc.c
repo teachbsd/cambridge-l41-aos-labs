@@ -912,11 +912,11 @@ print_configuration(void)
 	if (sysctlbyname("hw.pagesizes", &pagesizes, &len, NULL, 0) < 0)
 		xo_err(EX_OSERR, "sysctlbyname: hw.pagesizes");
 	if (len < sizeof(pagesizes[0]))
-		xo_err(EX_OSERR, "sysctlbyname: hwpagesizes unexpectes size");
+		xo_err(EX_OSERR, "sysctlbyname: hwpagesizes unexpected size");
 	xo_open_container("hw.pagesizes");
-	xo_emit("  hw.pagesizes: {:pagesize/%ld}", pagesizes[0]);
+	xo_emit("  hw.pagesizes: {:pagesize/%lu}", pagesizes[0]);
 	for (i = 1; i < len/sizeof(pagesizes[0]); i++)
-		xo_emit(", {:pagesize/%ld}", pagesizes[i]);
+		xo_emit(", {:pagesize/%lu}", pagesizes[i]);
 	xo_emit("\n");
 	xo_close_container("hw.pagesizes");
 
