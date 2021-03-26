@@ -737,7 +737,8 @@ ipc_objects_allocate(int *readfdp, int *writefdp)
 {
 	struct sockaddr_in sin;
 	int fd[2], listenfd, readfd, writefd, sockoptval;
-	int error, flags, i;
+	int error, flags, i, integer;
+	size_t len;
 
 	/*
 	 * Allocate a suitable IPC object.
