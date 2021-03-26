@@ -771,13 +771,25 @@ ipc_objects_allocate(int *readfdp, int *writefdp)
 		break;
 
 	case BENCHMARK_IPC_TCP_SOCKET:
+		/*
+		 * Flush the TCP host cache before starting the benchmark,
+		 * to prevent retained RTT/bandwidth estimates from
+		 * influencing performance results.
+		 */
+		integer = 1;
+		len = sizeof(integer);
+		if (sysctlbyname("net.inet.tcp.hostcache.purgenow", NULL,
+		    NULL, &integer, sizeof(integer)) < 0)
+			xo_err(EX_OSERR,
+			    "sysctlbyname: net.inet.tcp.hostcache.purgenow");
+
+		/*
+		 * Listen socket and a corresponding socket address used for
+		 * both binding and connecting.
+		 */
 		listenfd = socket(PF_INET, SOCK_STREAM, 0);
 		if (listenfd < 0)
 			xo_err(EX_OSERR, "FAIL: socket (listen)");
-
-		/*
-		 * Socket address used for both binding and connecting.
-		 */
 		i = 1;
 		if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &i,
 		    sizeof(i)) < 0)
