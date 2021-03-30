@@ -16,7 +16,7 @@ LAB3_FILES=					\
 	LICENSE					\
 	ipc/ipc.c				\
 	ipc/Makefile				\
-	2020-2021-l41-lab3.ipynb
+	2020-2021-l41-lab3-partii.ipynb
 
 ALL=${LAB1_TARBALL} ${LAB2_TARBALL} ${LAB3_TARBALL}
 
