@@ -54,10 +54,12 @@
 
 
 /*
- * L41: Lab 2-5 - IPC and TCP tracing.
- *
- * Based on the simplistic IPC benchmark used in prior labs, this version is
- * extended to support TCP.
+ * L41: Labs 2 and 3 - IPC and TCP.  This benchmark pushes data through one of
+ * several choices of IPC (pipes, local domain sockets, TCP sockets) with
+ * various I/O parameters including a configurable userspace buffer size, and
+ * in one of several mods (1thread, 2thread, 2proc).  It is able to capture
+ * timestamps, getrusage data, and performance counter data on its behaviour
+ * (using Arm's A72 counter set).  And it can print in text or JSON.
  */
 
 static unsigned int Bflag;	/* bare */
@@ -452,9 +454,6 @@ usage(void)
 }
 
 /*
- * The IPC benchmark itself.
- * XXX
- *
  * The I/O benchmark itself.  Perform any necessary setup.  Open the file or
  * device.  Take a timestamp.  Perform the work.  Take another timestamp.
  * (Optionally) print the results.
