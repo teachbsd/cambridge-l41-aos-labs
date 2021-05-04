@@ -938,6 +938,38 @@ print_configuration(void)
 		xo_err(EX_OSERR, "sysctlbyname: hw.cpufreq.arm_freq");
 	xo_emit("  hw.cpufreq.arm_freq: {:hw.cpufreq.arm_freq/%lu}\n",
 	    integer);
+
+	/* kern.ostype */
+	len = sizeof(buffer);
+	if (sysctlbyname("kern.ostype", buffer, &len, NULL, 0) < 0)
+		xo_err(EX_OSERR, "sysctlbyname: kern.ostype");
+	buffer[sizeof(buffer)-1] = '\0';
+	xo_emit("  kern.ostype: {:kern.ostype/%s}\n", buffer);
+
+	/* kern.osrelease */
+	len = sizeof(buffer);
+	if (sysctlbyname("kern.osrelease", buffer, &len, NULL, 0) < 0)
+		xo_err(EX_OSERR, "sysctlbyname: kern.osrelease");
+	buffer[sizeof(buffer)-1] = '\0';
+	xo_emit("  kern.osrelease: {:kern.osrelease/%s}\n", buffer);
+
+	/* kern.ident */
+	len = sizeof(buffer);
+	if (sysctlbyname("kern.ident", buffer, &len, NULL, 0) < 0)
+		xo_err(EX_OSERR, "sysctlbyname: kern.ident");
+	buffer[sizeof(buffer)-1] = '\0';
+	xo_emit("  kern.ident: {:kern.ident/%s}\n", buffer);
+
+	if (ipc_type == BENCHMARK_IPC_LOCAL_SOCKET ||
+	    ipc_type == BENCHMARK_IPC_TCP_SOCKET) {
+		/* kern.ipc.maxsockbuf */
+		len = sizeof(unsignedlong);
+		if (sysctlbyname("kern.ipc.maxsockbuf", &unsignedlong, &len,
+		    NULL, 0) < 0)
+			xo_err(EX_OSERR, "sysctlbyname: kern.ipc.maxsockbuf");
+		xo_emit("  kern.ipc.maxsockbuf: {:kern.ipc.maxsockbuf/%lu}\n",
+		    unsignedlong);
+	}
 	xo_close_container("host_configuration");
 
 	xo_open_container("benchmark_configuration");
