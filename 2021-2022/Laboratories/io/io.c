@@ -379,6 +379,20 @@ io(const char *path)
 			xo_emit("  stime: {:stime/%jd.%06jd} seconds\n",
 			    tv_total.tv_sec, tv_total.tv_usec);
 
+			/* Context switches. */
+			xo_emit("  nvcsw: {:nvcsw/%ld} "
+			    "voluntary context switches\n",
+			    (rusage_self_after.ru_nvcsw -
+			    rusage_self_before.ru_nvcsw) +
+			    (rusage_children_after.ru_nvcsw -
+			    rusage_children_before.ru_nvcsw));
+			xo_emit("  nivcsw: {:nivcsw/%ld} "
+			    "involuntary context switches\n",
+			    (rusage_self_after.ru_nivcsw -
+			    rusage_self_before.ru_nivcsw) +
+			    (rusage_children_after.ru_nivcsw -
+			    rusage_children_before.ru_nivcsw));
+
 			/* Blocks read and written. */
 			xo_emit("  inblock: {:inblock/%ld} blocks\n",
 			    (rusage_self_after.ru_inblock -
