@@ -8,4 +8,4 @@ io-dynamic io-benchmark: io.c
 	    -lutil
 
 clean:
-	rm -f io-dynamic io-static
+	rm -f io-dynamic io-static io-benchmark
