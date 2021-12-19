@@ -737,7 +737,6 @@ ipc_objects_allocate(int *readfdp, int *writefdp)
 	struct sockaddr_in sin;
 	int fd[2], listenfd, readfd, writefd, sockoptval;
 	int error, flags, i, integer;
-	size_t len;
 
 	/*
 	 * Allocate a suitable IPC object.
@@ -777,7 +776,6 @@ ipc_objects_allocate(int *readfdp, int *writefdp)
 		 * influencing performance results.
 		 */
 		integer = 1;
-		len = sizeof(integer);
 		if (sysctlbyname("net.inet.tcp.hostcache.purgenow", NULL,
 		    NULL, &integer, sizeof(integer)) < 0)
 			xo_err(EX_OSERR,
