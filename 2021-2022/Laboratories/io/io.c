@@ -207,7 +207,7 @@ io(const char *path)
 	struct rusage rusage_self_after, rusage_children_after;
 	struct timeval tv_self, tv_children, tv_total;
 	struct timespec ts_start, ts_finish;
-	long blockcount, i, iteration;
+	long i, iteration;
 	char *buf;
 	ssize_t len;
 	int fd;
