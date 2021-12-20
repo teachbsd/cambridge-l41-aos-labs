@@ -511,7 +511,7 @@ sender(struct sender_argument *sap)
 }
 
 static struct timespec
-receiver(int readfd, long msgcount, void *buf)
+receiver(int readfd, void *buf)
 {
 	struct timespec finishtime;
 	ssize_t len;
@@ -578,7 +578,7 @@ do_2thread(int readfd, int writefd, long msgcount, void *readbuf,
 	sa.sa_buffer = writebuf;
 	if (pthread_create(&thread, NULL, second_thread, &sa) < 0)
 		xo_err(EX_OSERR, "FAIL: pthread_create");
-	finishtime = receiver(readfd, msgcount, readbuf);
+	finishtime = receiver(readfd, readbuf);
 	if (pthread_join(thread, NULL) < 0)
 		xo_err(EX_OSERR, "FAIL: pthread_join");
 	timespecsub(&finishtime, &sa.sa_starttime, &finishtime);
@@ -615,7 +615,7 @@ do_2proc(int readfd, int writefd, long msgcount, void *readbuf,
 			sleep(1);
 		_exit(0);
 	}
-	finishtime = receiver(readfd, msgcount, readbuf);
+	finishtime = receiver(readfd, readbuf);
 	if ((pid2 = waitpid(pid, NULL, 0)) < 0)
 		xo_err(EX_OSERR, "FAIL: waitpid");
 	if (pid2 != pid)
