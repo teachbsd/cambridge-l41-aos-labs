@@ -27,12 +27,15 @@
 
 #include <sys/param.h>
 #include <sys/cpuset.h>
+#include <sys/ioctl.h>
 #include <sys/time.h>
 #include <sys/mman.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/sysctl.h>
 #include <sys/wait.h>
+
+#include <net/if.h>
 
 #include <netinet/in.h>
 
@@ -68,6 +71,8 @@ static unsigned int jflag;	/* JSON */
 static unsigned int qflag;	/* quiet */
 static unsigned int sflag;	/* set socket-buffer sizes */
 static unsigned int vflag;	/* verbose */
+
+#define	LOOPBACK_IFNAME		"lo0"	/* Used only for informative output. */
 
 /*
  * Which mode is the benchmark operating in?
@@ -878,6 +883,26 @@ ipc_objects_allocate(int *readfdp, int *writefdp)
 	*writefdp = writefd;
 }
 
+/*
+ * Query the loopback interface's MTU; a bit obscure, so in its own function.
+ */
+static int
+loopback_mtu(void)
+{
+	struct ifreq ifr;
+	int s;
+
+	bzero(&ifr, sizeof(ifr));
+	strlcpy(ifr.ifr_name, LOOPBACK_IFNAME, sizeof(ifr.ifr_name));
+	s = socket(PF_INET, SOCK_DGRAM, 0);
+	if (s < 0)
+		xo_err(EX_OSERR, "socket");
+	if (ioctl(s, SIOCGIFMTU, &ifr) < 0)
+		xo_err(EX_OSERR, "ioctl");
+	close(s);
+	return (ifr.ifr_mtu);
+}
+
 static void
 print_configuration(void)
 {
@@ -958,6 +983,13 @@ print_configuration(void)
 	buffer[sizeof(buffer)-1] = '\0';
 	xo_emit("  kern.ident: {:kern.ident/%s}\n", buffer);
 
+	/*
+	 * For the following network/IPC-related bits of information, we turn
+	 * to global settings rather than querying the specific socket/route/
+	 * etc.  This is fine in our teaching environment, but is arguably not
+	 * generalisable.
+	 */
+
 	/* Socket configuration, if appropriate. */
 	if (ipc_type == BENCHMARK_IPC_LOCAL_SOCKET ||
 	    ipc_type == BENCHMARK_IPC_TCP_SOCKET) {
@@ -972,6 +1004,13 @@ print_configuration(void)
 
 	/* TCP/IP configuration, if appropriate. */
 	if (ipc_type == BENCHMARK_IPC_TCP_SOCKET) {
+		/* Hard-coded ifnet name. */
+		xo_emit("  ifnet.name: {:ifnet.name/%s}\n", LOOPBACK_IFNAME);
+
+		/* Loopback MTU. */
+		xo_emit("  ifnet.mtu: {:ifnet.mtu/%u}\n", loopback_mtu());
+
+		/* Default TCP congestion-control algorithm. */
 		len = sizeof(buffer);
 		if (sysctlbyname("net.inet.tcp.cc.algorithm", buffer, &len,
 		    NULL, 0) < 0)
@@ -980,8 +1019,25 @@ print_configuration(void)
 		buffer[sizeof(buffer)-1] = '\0';
 		xo_emit("  net.inet.tcp.cc.algorithm: "
 		    "{:net.inet.tcp.cc.algorithm/%s}\n", buffer);
-	}
 
+		/* Netisr threads pinned? */
+		len = sizeof(integer);
+		if (sysctlbyname("net.isr.bindthreads", &integer, &len, NULL,
+		    0) < 0)
+			xo_err(EX_OSERR, "sysctlbyname: "
+			    "net.isr.bindthreads");
+		xo_emit("  net.isr.bindthreads: {:net.isr.bindthreads/%d}\n",
+		    integer);
+
+		/* Netisr queue length. */
+		len = sizeof(integer);
+		if (sysctlbyname("net.isr.defaultqlimit", &integer, &len, NULL,
+		    0) < 0)
+			xo_err(EX_OSERR, "sysctlbyname: "
+			    "net.isr.defaultqlimit");
+		xo_emit("  net.isr.defaultqlimit: "
+		    "{:net.isr.defaultqlimit/%d}\n", integer);
+	}
 	xo_close_container("host_configuration");
 
 	xo_open_container("benchmark_configuration");
