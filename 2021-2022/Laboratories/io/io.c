@@ -27,6 +27,7 @@
 #include <sys/param.h>
 #include <sys/cpuset.h>
 #include <sys/mman.h>
+#include <sys/mount.h>
 #include <sys/sysctl.h>
 #include <sys/resource.h>
 #include <sys/time.h>
@@ -103,6 +104,7 @@ usage(void)
 static void
 print_configuration(const char *path)
 {
+	struct statfs buf;
 	char buffer[80];
 	int integer;
 	unsigned long unsignedlong;
@@ -179,6 +181,13 @@ print_configuration(const char *path)
 		xo_err(EX_OSERR, "sysctlbyname: kern.ident");
 	buffer[sizeof(buffer)-1] = '\0';
 	xo_emit("  kern.ident: {:kern.ident/%s}\n", buffer);
+
+	/* Disk and filesystem information */
+	if (statfs(path, &buf) < 0)
+		xo_err(EX_OSERR, "statfs");
+	xo_emit("  fstype: {:fstype/%s}\n", buf.f_fstypename);
+	xo_emit("  fsdev: {:fsdev/%s}\n", buf.f_mntfromname);
+	xo_emit("  fspath: {:fspath/%s}\n", buf.f_mntonname);
 	xo_close_container("host_configuration");
 
 	xo_open_container("benchmark_configuration");
