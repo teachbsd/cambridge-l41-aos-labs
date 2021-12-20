@@ -958,6 +958,7 @@ print_configuration(void)
 	buffer[sizeof(buffer)-1] = '\0';
 	xo_emit("  kern.ident: {:kern.ident/%s}\n", buffer);
 
+	/* Socket configuration, if appropriate. */
 	if (ipc_type == BENCHMARK_IPC_LOCAL_SOCKET ||
 	    ipc_type == BENCHMARK_IPC_TCP_SOCKET) {
 		/* kern.ipc.maxsockbuf */
@@ -968,6 +969,19 @@ print_configuration(void)
 		xo_emit("  kern.ipc.maxsockbuf: {:kern.ipc.maxsockbuf/%lu}\n",
 		    unsignedlong);
 	}
+
+	/* TCP/IP configuration, if appropriate. */
+	if (ipc_type == BENCHMARK_IPC_TCP_SOCKET) {
+		len = sizeof(buffer);
+		if (sysctlbyname("net.inet.tcp.cc.algorithm", buffer, &len,
+		    NULL, 0) < 0)
+			xo_err(EX_OSERR, "sysctlbyname: "
+			    "net.inet.tcp.cc.algorithm");
+		buffer[sizeof(buffer)-1] = '\0';
+		xo_emit("  net.inet.tcp.cc.algorithm: "
+		    "{:net.inet.tcp.cc.algorithm/%s}\n", buffer);
+	}
+
 	xo_close_container("host_configuration");
 
 	xo_open_container("benchmark_configuration");
