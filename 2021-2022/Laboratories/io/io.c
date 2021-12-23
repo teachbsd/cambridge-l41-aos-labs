@@ -34,9 +34,11 @@
 
 #include <fcntl.h>
 #include <inttypes.h>
+#include <libgen.h>
 #include <libxo/xo.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sysexits.h>
 #include <time.h>
 #include <unistd.h>
@@ -104,8 +106,8 @@ usage(void)
 static void
 print_configuration(const char *path)
 {
-	struct statfs buf;
-	char buffer[80];
+	struct statfs statfs_buf;
+	char buffer[80], *bufferp;
 	int integer;
 	unsigned long unsignedlong;
 	unsigned long pagesizes[MAXPAGESIZES];
@@ -183,11 +185,13 @@ print_configuration(const char *path)
 	xo_emit("  kern.ident: {:kern.ident/%s}\n", buffer);
 
 	/* Disk and filesystem information */
-	if (statfs(path, &buf) < 0)
+	strlcpy(buffer, path, sizeof(buffer));
+	bufferp = dirname(buffer);
+	if (statfs(bufferp, &statfs_buf) < 0)
 		xo_err(EX_OSERR, "statfs");
-	xo_emit("  fstype: {:fstype/%s}\n", buf.f_fstypename);
-	xo_emit("  fsdev: {:fsdev/%s}\n", buf.f_mntfromname);
-	xo_emit("  fspath: {:fspath/%s}\n", buf.f_mntonname);
+	xo_emit("  fstype: {:fstype/%s}\n", statfs_buf.f_fstypename);
+	xo_emit("  fsdev: {:fsdev/%s}\n", statfs_buf.f_mntfromname);
+	xo_emit("  fspath: {:fspath/%s}\n", statfs_buf.f_mntonname);
 	xo_close_container("host_configuration");
 
 	xo_open_container("benchmark_configuration");
