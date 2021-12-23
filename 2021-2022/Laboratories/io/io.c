@@ -149,12 +149,17 @@ print_configuration(const char *path)
 		xo_err(EX_OSERR, "sysctlbyname: hw.pagesizes");
 	if (len < sizeof(pagesizes[0]))
 		xo_err(EX_OSERR, "sysctlbyname: hwpagesizes unexpectes size");
-	xo_open_container("hw.pagesizes");
+	xo_open_list("hw.pagesizes");
+	xo_open_instance("pagesize");
 	xo_emit("  hw.pagesizes: {:pagesize/%ld}", pagesizes[0]);
-	for (i = 1; i < len/sizeof(pagesizes[0]); i++)
+	xo_close_instance("pagesize");
+	for (i = 1; i < len/sizeof(pagesizes[0]); i++) {
+		xo_open_instance("pagesize");
 		xo_emit(", {:pagesize/%ld}", pagesizes[i]);
+		xo_close_instance("pagesize");
+	}
 	xo_emit("\n");
-	xo_close_container("hw.pagesizes");
+	xo_close_list("hw.pagesizes");
 
 	/* hw.cpufreq.arm_freq */
 	len = sizeof(integer);
