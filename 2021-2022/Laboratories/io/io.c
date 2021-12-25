@@ -561,11 +561,10 @@ main(int argc, char *argv[])
 	 * reject if we find any.  However, we then force some flags on to
 	 * control behaviour in io() -- i.e., to write().
 	 */
-	if (cflag && (Bflag || dflag || qflag || rflag || sflag || vflag))
+	if (cflag && (Bflag || dflag || sflag || (iterations != ITERATIONS)))
 		usage();
 	if (cflag) {
 		Bflag = 1;	/* Don't do benchmark prep. */
-		vflag = 1;	/* Provide status information. */
 		wflag = 1;	/* Do use write(). */
 	}
 	argc -= optind;
