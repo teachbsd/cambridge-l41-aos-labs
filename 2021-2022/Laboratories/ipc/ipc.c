@@ -910,6 +910,7 @@ print_configuration(void)
 	int integer;
 	unsigned long unsignedlong;
 	unsigned long pagesizes[MAXPAGESIZES];
+	long signedlong;
 	size_t len;
 	int i;
 
@@ -994,6 +995,18 @@ print_configuration(void)
 	 * etc.  This is fine in our teaching environment, but is arguably not
 	 * generalisable.
 	 */
+
+	/* Pipe configuration, if appropriate. */
+	if (ipc_type == BENCHMARK_IPC_PIPE) {
+		/* kern.ipc.pipe_mindirect */
+		len = sizeof(signedlong);
+		if (sysctlbyname("kern.ipc.pipe_mindirect", &signedlong, &len,
+		    NULL, 0) < 0)
+			xo_err(EX_OSERR,
+			    "sysctlbyname: kern.ipc.pipe_mindirect");
+		xo_emit("  kern.ipc.pipe_mindirect: {:kern.ipc.pipe_mindirect"
+		    "/%ld}\n", signedlong);
+	}
 
 	/* Socket configuration, if appropriate. */
 	if (ipc_type == BENCHMARK_IPC_LOCAL_SOCKET ||
