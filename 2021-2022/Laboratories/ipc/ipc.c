@@ -914,8 +914,8 @@ print_configuration(void)
 	size_t len;
 	int i;
 
-	xo_open_container("host_configuration");
-	xo_emit("Host configuration:\n");
+	xo_open_container("hardware_configuration");
+	xo_emit("Hardware configuration:\n");
 
 	/* hw.machine */
 	len = sizeof(buffer);
@@ -967,6 +967,9 @@ print_configuration(void)
 		xo_err(EX_OSERR, "sysctlbyname: hw.cpufreq.arm_freq");
 	xo_emit("  hw.cpufreq.arm_freq: {:hw.cpufreq.arm_freq/%lu}\n",
 	    integer);
+
+	xo_close_container("hardware_configuration");
+	xo_open_container("os_configuration");
 
 	/* kern.ostype */
 	len = sizeof(buffer);
@@ -1056,7 +1059,7 @@ print_configuration(void)
 		xo_emit("  net.isr.defaultqlimit: "
 		    "{:net.isr.defaultqlimit/%d}\n", integer);
 	}
-	xo_close_container("host_configuration");
+	xo_close_container("os_configuration");
 
 	xo_open_container("benchmark_configuration");
 	xo_emit("Benchmark configuration:\n");

@@ -114,8 +114,8 @@ print_configuration(const char *path)
 	size_t len;
 	int i;
 
-	xo_open_container("host_configuration");
-	xo_emit("Host configuration:\n");
+	xo_open_container("hw_configuration");
+	xo_emit("Hardware configuration:\n");
 
 	/* hw.machine */
 	len = sizeof(buffer);
@@ -168,6 +168,9 @@ print_configuration(const char *path)
 	xo_emit("  hw.cpufreq.arm_freq: {:hw.cpufreq.arm_freq/%lu}\n",
 	    integer);
 
+	xo_close_container("hw_configuration");
+	xo_open_container("os_configuration");
+
 	/* kern.ostype */
 	len = sizeof(buffer);
 	if (sysctlbyname("kern.ostype", buffer, &len, NULL, 0) < 0)
@@ -197,7 +200,7 @@ print_configuration(const char *path)
 	xo_emit("  fstype: {:fstype/%s}\n", statfs_buf.f_fstypename);
 	xo_emit("  fsdev: {:fsdev/%s}\n", statfs_buf.f_mntfromname);
 	xo_emit("  fspath: {:fspath/%s}\n", statfs_buf.f_mntonname);
-	xo_close_container("host_configuration");
+	xo_close_container("os_configuration");
 
 	xo_open_container("benchmark_configuration");
 	xo_emit("Benchmark configuration:\n");
