@@ -56,14 +56,29 @@
 #define	TOTALSIZE	(16 * 1024 * 1024UL)
 
 static unsigned int Bflag;	/* bare */
-static unsigned int cflag;	/* create */
 static unsigned int dflag;	/* O_DIRECT */
 static unsigned int gflag;	/* getrusage */
 static unsigned int qflag;	/* quiet */
-static unsigned int rflag;	/* read() */
 static unsigned int sflag;	/* fsync() */
 static unsigned int vflag;	/* verbose */
-static unsigned int wflag;	/* write() */
+
+const char *operation_string;	/* "create", "read", or "write" */
+
+#define	OPERATION_INVALID_STRING	"invalid"
+#define	OPERATION_NONE_STRING		"none"
+#define	OPERATION_CREATE_STRING		"create"
+#define	OPERATION_DESCRIBE_STRING	"describe"
+#define	OPERATION_READ_STRING		"read"
+#define	OPERATION_WRITE_STRING		"write"
+
+#define	OPERATION_INVALID		-1
+#define	OPERATION_NONE			0
+#define	OPERATION_CREATE		1
+#define	OPERATION_DESCRIBE		2
+#define	OPERATION_READ			3
+#define	OPERATION_WRITE			4
+
+static int operation = OPERATION_INVALID;
 
 static long buffersize;		/* I/O buffer size */
 static long iterations;		/* number of iterations  to perform */
@@ -79,13 +94,15 @@ static void
 usage(void)
 {
 
-	xo_error("usage: %s -c|-r|-w [-Bdjqsv] [-b buffersize]\n"
-	    "    [-n iterations] [-t totalsize] path\n", PROGNAME);
+	xo_error("usage: %s [-Bdjqsv] [-b buffersize] [-n iterations] "
+	   "[-t totalsize]\n"
+	   "    create|describe|read|write path\n", PROGNAME);
 	xo_error("\n"
-  "Modes (pick one):\n"
-  "    -c              'create mode': create benchmark data file\n"
-  "    -r              'read mode': read() benchmark\n"
-  "    -w              'write mode': write() benchmark\n"
+  "Modes:\n"
+  "    create      Create the specified I/O data file\n"
+  "    describe    Describe the hardware, OS, and benchmark configurations\n"
+  "    read        Perform the read benchmark variant\n"
+  "    write       Perform the write benchmark variant\n"
   "\n"
   "Optional flags:\n"
   "    -B              Run in bare mode: no preparatory activities\n"
@@ -101,6 +118,49 @@ usage(void)
 	    BLOCKSIZE, ITERATIONS, TOTALSIZE);
 	xo_finish();
 	exit(EX_USAGE);
+}
+
+static int
+operation_from_string(const char *operation_string)
+{
+
+	if (strcmp(operation_string, OPERATION_NONE_STRING) == 0)
+		return (OPERATION_NONE);
+	else if (strcmp(operation_string, OPERATION_CREATE_STRING) == 0)
+		return (OPERATION_CREATE);
+	else if (strcmp(operation_string, OPERATION_DESCRIBE_STRING) == 0)
+		return (OPERATION_DESCRIBE);
+	else if (strcmp(operation_string, OPERATION_READ_STRING) == 0)
+		return (OPERATION_READ);
+	else if (strcmp(operation_string, OPERATION_WRITE_STRING) == 0)
+		return (OPERATION_WRITE);
+	else
+		return (OPERATION_INVALID);
+}
+
+static const char *
+operation_to_string(int operation_number)
+{
+
+	switch (operation_number) {
+	case OPERATION_NONE:
+		return (OPERATION_NONE_STRING);
+
+	case OPERATION_CREATE:
+		return (OPERATION_CREATE_STRING);
+
+	case OPERATION_DESCRIBE:
+		return (OPERATION_DESCRIBE_STRING);
+
+	case OPERATION_READ:
+		return (OPERATION_READ_STRING);
+
+	case OPERATION_WRITE:
+		return (OPERATION_WRITE_STRING);
+
+	default:
+		return (OPERATION_INVALID_STRING);
+	}
 }
 
 static void
@@ -170,6 +230,7 @@ print_configuration(const char *path)
 
 	xo_close_container("hw_configuration");
 	xo_open_container("os_configuration");
+	xo_emit("OS configuration:\n");
 
 	/* kern.ostype */
 	len = sizeof(buffer);
@@ -207,8 +268,8 @@ print_configuration(const char *path)
 	xo_emit("  buffersize: {:buffersize/%ld}\n", buffersize);
 	xo_emit("  totalsize: {:totalsize/%ld}\n", totalsize);
 	xo_emit("  blockcount: {:blockcount/%ld}\n", blockcount);
-	xo_emit("  operation: {:operation/%s}\n", cflag ?  "create" :
-	    (wflag ? "write" : "read"));
+	xo_emit("  operation: {:operation/%s}\n",
+	    operation_to_string(operation));
 	xo_emit("  path: {:path/%s}\n", path);
 	xo_emit("  iterations: {:iterations/%ld}\n", iterations);
 	xo_close_container("benchmark_configuration");
@@ -231,16 +292,9 @@ io(const char *path)
 	long i, iteration;
 	char *buf;
 	ssize_t len;
-	int fd;
+	int fd, flags;
 	double secs, rate;
 	cpuset_t cpuset_mask;
-
-	if (totalsize % buffersize != 0)
-		xo_errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple "
-		    "of buffersize (%ld)", totalsize, buffersize);
-	blockcount = totalsize / buffersize;
-	if (blockcount < 0)
-		xo_errx(EX_USAGE, "FAIL: negative block count");
 
 	/*
 	 * For the purposes of lab simplicity, pin the benchmark (this process
@@ -251,12 +305,6 @@ io(const char *path)
 	if (cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1,
 	    sizeof(cpuset_mask), &cpuset_mask) < 0)
 		xo_err(EX_OSERR, "FAIL: cpuset_setaffinity");
-
-	/*
-	 * Configuration information first, if requested.
-	 */
-	if (!qflag && vflag)
-		print_configuration(path);
 
 	if (!qflag)
 		xo_open_list("benchmark_samples");
@@ -275,11 +323,22 @@ io(const char *path)
 		 * mode, use only existing files, but allow buffer-cache
 		 * bypass if requested.
 		 */
-		if (cflag)
-			fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0600);
-		else 
-			fd = open(path, (wflag ? O_RDWR : O_RDONLY) |
-			    (dflag ? O_DIRECT : 0));
+		switch (operation) {
+		case OPERATION_CREATE:
+			flags = O_RDWR | O_CREAT | O_TRUNC;
+			break;
+
+		case OPERATION_READ:
+			flags = O_RDONLY;
+			break;
+
+		case OPERATION_WRITE:
+			flags = O_RDWR;
+			break;
+		}
+		if (dflag)
+			flags |= O_DIRECT;
+		fd = open(path, flags, 0600);
 		if (fd < 0)
 			xo_err(EX_NOINPUT, "FAIL: %s", path);
 
@@ -344,16 +403,26 @@ io(const char *path)
 		 * HERE BEGINS THE BENCHMARK.
 		 */
 		for (i = 0; i < blockcount; i++) {
-			if (wflag)
+			switch (operation) {
+			case OPERATION_CREATE:
+			case OPERATION_WRITE:
 				len = write(fd, buf, buffersize);
-			else
+				if (len < 0)
+					xo_err(EX_IOERR, "FAIL: write");
+				if (len != buffersize)
+					xo_errx(EX_IOERR,
+					    "FAIL: partial write");
+				break;
+
+			case OPERATION_READ:
 				len = read(fd, buf, buffersize);
-			if (len < 0)
-				xo_err(EX_IOERR, "FAIL: %s", wflag ? "write" :
-				    "read");
-			if (len != buffersize)
-				xo_errx(EX_IOERR, "FAIL: partial %s", wflag ?
-				    "write" : "read");
+				if (len < 0)
+					xo_err(EX_IOERR, "areda");
+				if (len != buffersize)
+					xo_errx(EX_IOERR,
+					    "FAIL: partial read");
+				break;
+			}
 		}
 		if (sflag)
 			fsync(fd);
@@ -476,14 +545,14 @@ main(int argc, char *argv[])
 	int ch;
 
 	argc = xo_parse_args(argc, argv);
-	if (argc < 0)
+	if (argc < 1)
 		exit(EX_USAGE);
 
 	buffersize = BLOCKSIZE;
 	iterations = ITERATIONS;
 	totalsize = TOTALSIZE;
 	path = NULL;
-	while ((ch = getopt(argc, argv, "Bb:cdgjn:qrst:vw")) != -1) {
+	while ((ch = getopt(argc, argv, "Bb:dgjn:qst:v")) != -1) {
 		switch (ch) {
 		case 'B':
 			Bflag++;
@@ -493,10 +562,6 @@ main(int argc, char *argv[])
 			buffersize = strtol(optarg, &endp, 10);
 			if (*optarg == '\0' || *endp != '\0' || buffersize <= 0)
 				usage();
-			break;
-
-		case 'c':
-			cflag++;
 			break;
 
 		case 'd':
@@ -522,10 +587,6 @@ main(int argc, char *argv[])
 			qflag++;
 			break;
 
-		case 'r':
-			rflag++;
-			break;
-
 		case 's':
 			sflag++;
 			break;
@@ -540,10 +601,6 @@ main(int argc, char *argv[])
 			vflag++;
 			break;
 
-		case 'w':
-			wflag++;
-			break;
-
 		case '?':
 		default:
 			usage();
@@ -551,27 +608,45 @@ main(int argc, char *argv[])
 	}
 
 	/*
-	 * Exactly one of 'read mode', 'write mode', or 'create mode'.
+	 * We expect a mode of operation and file path as the remaining two
+	 * arguments.
 	 */
-	if (cflag + rflag + wflag != 1)
+	argc -= optind;
+	argv += optind;
+	if (argc != 2)
 		usage();
+	operation = operation_from_string(argv[0]);
+	if (operation == OPERATION_INVALID)
+		usage();
+	path = argv[1];
 
 	/*
 	 * 'create' mode doesn't accept flags other than block/total size, so
 	 * reject if we find any.  However, we then force some flags on to
 	 * control behaviour in io() -- i.e., to write().
 	 */
-	if (cflag && (Bflag || dflag || sflag || (iterations != ITERATIONS)))
-		usage();
-	if (cflag) {
+	if (operation == OPERATION_CREATE) {
+		if (Bflag || dflag || sflag || (iterations != ITERATIONS))
+			usage();
 		Bflag = 1;	/* Don't do benchmark prep. */
-		wflag = 1;	/* Do use write(). */
-	}
-	argc -= optind;
-	argv += optind;
-	if (argc == 0 || argc > 1)
-		usage();
-	path = argv[0];
-	io(path);
+	} else if (operation == OPERATION_DESCRIBE)
+		vflag = 1;
+
+	if (totalsize % buffersize != 0)
+		xo_errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple "
+		    "of buffersize (%ld)", totalsize, buffersize);
+	blockcount = totalsize / buffersize;
+	if (blockcount < 0)
+		xo_errx(EX_USAGE, "FAIL: negative block count");
+
+	/*
+	 * Configuration information first, if requested.  If this is
+	 * OPERATION_DESCRIBE, that's all we do.
+	 */
+	if (!qflag && vflag)
+		print_configuration(path);
+	if (operation == OPERATION_CREATE || operation == OPERATION_READ ||
+	    operation == OPERATION_WRITE)
+		io(path);
 	exit(0);
 }
