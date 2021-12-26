@@ -81,11 +81,13 @@ static unsigned int vflag;	/* verbose */
 #define	BENCHMARK_MODE_1THREAD_STRING	"1thread"
 #define	BENCHMARK_MODE_2THREAD_STRING	"2thread"
 #define	BENCHMARK_MODE_2PROC_STRING	"2proc"
+#define	BENCHMARK_MODE_DESCRIBE_STRING	"describe"
 
 #define	BENCHMARK_MODE_INVALID		-1
 #define	BENCHMARK_MODE_1THREAD		1
 #define	BENCHMARK_MODE_2THREAD		2
 #define	BENCHMARK_MODE_2PROC		3
+#define	BENCHMARK_MODE_DESCRIBE		4
 
 #define	BENCHMARK_MODE_DEFAULT		BENCHMARK_MODE_1THREAD
 static unsigned int benchmark_mode = BENCHMARK_MODE_DEFAULT;
@@ -392,6 +394,8 @@ benchmark_mode_from_string(const char *string)
 		return (BENCHMARK_MODE_2THREAD);
 	else if (strcmp(BENCHMARK_MODE_2PROC_STRING, string) == 0)
 		return (BENCHMARK_MODE_2PROC);
+	else if (strcmp(BENCHMARK_MODE_DESCRIBE_STRING, string) == 0)
+		return (BENCHMARK_MODE_DESCRIBE);
 	else
 		return (BENCHMARK_MODE_INVALID);
 }
@@ -409,6 +413,9 @@ benchmark_mode_to_string(int mode)
 
 	case BENCHMARK_MODE_2PROC:
 		return (BENCHMARK_MODE_2PROC_STRING);
+
+	case BENCHMARK_MODE_DESCRIBE:
+		return (BENCHMARK_MODE_DESCRIBE_STRING);
 
 	default:
 		return (BENCHMARK_MODE_INVALID_STRING);
@@ -431,9 +438,10 @@ usage(void)
 	    " [-t totalsize] mode\n", PROGNAME);
 	xo_error("\n"
   "Modes (pick one - default %s):\n"
-  "    1thread                IPC within a single thread\n"
-  "    2thread                IPC between two threads in one process\n"
-  "    2proc                  IPC between two threads in two different processes\n"
+  "    1thread     IPC within a single thread\n"
+  "    2thread     IPC between two threads in one process\n"
+  "    2proc       IPC between two threads in two different processes\n"
+  "    describe    Describe the hardware, OS, and benchmark configurations\n"
   "\n"
   "Optional flags:\n"
   "    -B                     Run in bare mode: no preparatory activities\n"
@@ -1094,13 +1102,6 @@ ipc(void)
 	float f;
 #endif
 
-	if (totalsize % buffersize != 0)
-		xo_errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple "
-		    "of buffersize (%ld)", totalsize, buffersize);
-	msgcount = totalsize / buffersize;
-	if (msgcount < 0)
-		xo_errx(EX_USAGE, "FAIL: negative block count");
-
 	/*
 	 * For the purposes of lab simplicity, pin the benchmark (this process
 	 * and all its children processes) to CPU 0.
@@ -1134,12 +1135,6 @@ ipc(void)
 	if (writebuf == NULL)
 		xo_err(EX_OSERR, "FAIL: mmap");
 	memset(writebuf, 0, buffersize);
-
-	/*
-	 * Configuration information first, if requested (but only once).
-	 */
-	if (!qflag && vflag)
-		print_configuration();
 
 	/*
 	 * Start running benchmark loop.
@@ -1484,6 +1479,22 @@ main(int argc, char *argv[])
 	benchmark_mode = benchmark_mode_from_string(argv[0]);
 	if (benchmark_mode == BENCHMARK_MODE_INVALID)
 		usage();
-	ipc();
+	if (benchmark_mode == BENCHMARK_MODE_DESCRIBE)
+		vflag = 1;
+
+	if (totalsize % buffersize != 0)
+		xo_errx(EX_USAGE, "FAIL: data size (%ld) is not a multiple "
+		    "of buffersize (%ld)", totalsize, buffersize);
+	msgcount = totalsize / buffersize;
+	if (msgcount < 0)
+		xo_errx(EX_USAGE, "FAIL: negative block count");
+
+	/*
+	 * Configuration information first, if requested (but only once).
+	 */
+	if (!qflag && vflag)
+		print_configuration();
+	if (benchmark_mode != BENCHMARK_MODE_DESCRIBE)
+		ipc();
 	exit(0);
 }
