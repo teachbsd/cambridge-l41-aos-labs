@@ -970,6 +970,7 @@ print_configuration(void)
 
 	xo_close_container("hardware_configuration");
 	xo_open_container("os_configuration");
+	xo_emit("OS configuration:\n");
 
 	/* kern.ostype */
 	len = sizeof(buffer);
