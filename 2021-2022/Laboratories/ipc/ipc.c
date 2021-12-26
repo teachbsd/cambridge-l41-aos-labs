@@ -1008,67 +1008,56 @@ print_configuration(void)
 	 * generalisable.
 	 */
 
-	/* Pipe configuration, if appropriate. */
-	if (ipc_type == BENCHMARK_IPC_PIPE) {
-		/* kern.ipc.pipe_mindirect */
-		len = sizeof(signedlong);
-		if (sysctlbyname("kern.ipc.pipe_mindirect", &signedlong, &len,
-		    NULL, 0) < 0)
-			xo_err(EX_OSERR,
-			    "sysctlbyname: kern.ipc.pipe_mindirect");
-		xo_emit("  kern.ipc.pipe_mindirect: {:kern.ipc.pipe_mindirect"
-		    "/%ld}\n", signedlong);
-	}
-
-	/* Socket configuration, if appropriate. */
-	if (ipc_type == BENCHMARK_IPC_LOCAL_SOCKET ||
-	    ipc_type == BENCHMARK_IPC_TCP_SOCKET) {
-		/* kern.ipc.maxsockbuf */
-		len = sizeof(unsignedlong);
-		if (sysctlbyname("kern.ipc.maxsockbuf", &unsignedlong, &len,
-		    NULL, 0) < 0)
-			xo_err(EX_OSERR, "sysctlbyname: kern.ipc.maxsockbuf");
-		xo_emit("  kern.ipc.maxsockbuf: {:kern.ipc.maxsockbuf/%lu}\n",
-		    unsignedlong);
-	}
-
-	/* TCP/IP configuration, if appropriate. */
-	if (ipc_type == BENCHMARK_IPC_TCP_SOCKET) {
-		/* Hard-coded ifnet name. */
-		xo_emit("  ifnet.name: {:ifnet.name/%s}\n", LOOPBACK_IFNAME);
-
-		/* Loopback MTU. */
-		xo_emit("  ifnet.mtu: {:ifnet.mtu/%u}\n", loopback_mtu());
-
-		/* Default TCP congestion-control algorithm. */
-		len = sizeof(buffer);
-		if (sysctlbyname("net.inet.tcp.cc.algorithm", buffer, &len,
-		    NULL, 0) < 0)
-			xo_err(EX_OSERR, "sysctlbyname: "
-			    "net.inet.tcp.cc.algorithm");
-		buffer[sizeof(buffer)-1] = '\0';
-		xo_emit("  net.inet.tcp.cc.algorithm: "
-		    "{:net.inet.tcp.cc.algorithm/%s}\n", buffer);
-
-		/* Netisr threads pinned? */
-		len = sizeof(integer);
-		if (sysctlbyname("net.isr.bindthreads", &integer, &len, NULL,
-		    0) < 0)
-			xo_err(EX_OSERR, "sysctlbyname: "
-			    "net.isr.bindthreads");
-		xo_emit("  net.isr.bindthreads: {:net.isr.bindthreads/%d}\n",
-		    integer);
-
-		/* Netisr queue length. */
-		len = sizeof(integer);
-		if (sysctlbyname("net.isr.defaultqlimit", &integer, &len, NULL,
-		    0) < 0)
-			xo_err(EX_OSERR, "sysctlbyname: "
-			    "net.isr.defaultqlimit");
-		xo_emit("  net.isr.defaultqlimit: "
-		    "{:net.isr.defaultqlimit/%d}\n", integer);
-	}
 	xo_close_container("os_configuration");
+	xo_open_container("network_ipc_configuration");
+	xo_emit("Network and IPC configuration:\n");
+
+	/* kern.ipc.pipe_mindirect */
+	len = sizeof(signedlong);
+	if (sysctlbyname("kern.ipc.pipe_mindirect", &signedlong, &len, NULL,
+	    0) < 0)
+		xo_err(EX_OSERR, "sysctlbyname: kern.ipc.pipe_mindirect");
+	xo_emit("  kern.ipc.pipe_mindirect: {:kern.ipc.pipe_mindirect/%ld}\n",
+	    signedlong);
+
+	/* kern.ipc.maxsockbuf */
+	len = sizeof(unsignedlong);
+	if (sysctlbyname("kern.ipc.maxsockbuf", &unsignedlong, &len, NULL, 0)
+	    < 0)
+		xo_err(EX_OSERR, "sysctlbyname: kern.ipc.maxsockbuf");
+	xo_emit("  kern.ipc.maxsockbuf: {:kern.ipc.maxsockbuf/%lu}\n",
+	    unsignedlong);
+
+	/* Hard-coded ifnet name. */
+	xo_emit("  ifnet.name: {:ifnet.name/%s}\n", LOOPBACK_IFNAME);
+
+	/* Loopback MTU. */
+	xo_emit("  ifnet.mtu: {:ifnet.mtu/%u}\n", loopback_mtu());
+
+	/* Default TCP congestion-control algorithm. */
+	len = sizeof(buffer);
+	if (sysctlbyname("net.inet.tcp.cc.algorithm", buffer, &len, NULL, 0) <
+	    0)
+		xo_err(EX_OSERR, "sysctlbyname: net.inet.tcp.cc.algorithm");
+	buffer[sizeof(buffer)-1] = '\0';
+	xo_emit("  net.inet.tcp.cc.algorithm: "
+	    "{:net.inet.tcp.cc.algorithm/%s}\n", buffer);
+
+	/* Netisr threads pinned? */
+	len = sizeof(integer);
+	if (sysctlbyname("net.isr.bindthreads", &integer, &len, NULL, 0) < 0)
+		xo_err(EX_OSERR, "sysctlbyname: net.isr.bindthreads");
+	xo_emit("  net.isr.bindthreads: {:net.isr.bindthreads/%d}\n",
+	    integer);
+
+	/* Netisr queue length. */
+	len = sizeof(integer);
+	if (sysctlbyname("net.isr.defaultqlimit", &integer, &len, NULL, 0) <
+	    0)
+		xo_err(EX_OSERR, "sysctlbyname: net.isr.defaultqlimit");
+	xo_emit("  net.isr.defaultqlimit: {:net.isr.defaultqlimit/%d}\n",
+	    integer);
+	xo_close_container("network_ipc_configuration");
 
 	xo_open_container("benchmark_configuration");
 	xo_emit("Benchmark configuration:\n");
