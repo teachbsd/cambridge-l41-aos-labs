@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2015, 2020-2021 Robert N. M. Watson
+ * Copyright (c) 2015, 2020-2022 Robert N. M. Watson
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -252,6 +252,11 @@ print_configuration(const char *path)
 		xo_err(EX_OSERR, "sysctlbyname: kern.ident");
 	buffer[sizeof(buffer)-1] = '\0';
 	xo_emit("  kern.ident: {:kern.ident/%s}\n", buffer);
+
+	/* Hostname */
+	if (gethostname(buffer, sizeof(buffer)) < 0)
+		xo_err(EX_OSERR, "gethostname");
+	xo_emit("  kern.hostname: {:kern.hostname/%s}\n", buffer);
 
 	/* Disk and filesystem information */
 	strlcpy(buffer, path, sizeof(buffer));
