@@ -15,6 +15,9 @@ LAB2_FILES=					\
 ALL=${LAB1_TARBALL} ${LAB2_TARBALL}
 
 all: ${ALL}
+distribute: all
+	python3 distribute.py
+
 clean:
 	rm -f ${ALL}
 
