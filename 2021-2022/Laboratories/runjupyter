@@ -1,0 +1,43 @@
+#!/bin/sh
+
+usage() {
+	cat >&2 <<__EOF__
+usage: $(basename $0) [-f]
+__EOF__
+	exit 1
+}
+
+force_run=0
+
+while getopts f o; do
+	case $o in
+	f)
+		force_run=1
+		;;
+	?)
+		usage
+		;;
+	esac
+	shift $((OPTIND-1))
+done
+
+# Hack to see if python is already running somewhere.
+running=$(ps auxw | grep "[p]ython")
+
+if [ ! -z "${running}" ]; then
+	# Pretty print the error. This is messy but does the job.
+	cat >&2 <<__EOF__
+Jupyter is already running. Please turn off the following processes manually:
+
+__EOF__
+	echo "${running}" | awk '{ print "\t"$2 > "/dev/stderr" }'
+	>&2 echo ""
+	if [ ${force_run} = 0 ]; then
+		exit 1
+	else
+		echo "-f is specified. Running anyway!"
+	fi
+fi
+
+# We don't currently use 'lockf', and instead specify --port-retries=0.
+jupyter-lab --port=8080 --allow-root --no-browser --port-retries=0
