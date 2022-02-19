@@ -1329,12 +1329,14 @@ ipc(void)
 			f = pmc_values[COUNTERSET_INSTR_INDEX_L1I_CACHE] -
 			    pmc_values[COUNTERSET_INSTR_INDEX_L1I_CACHE_REFILL];
 			f /= pmc_values[COUNTERSET_INSTR_INDEX_L1I_CACHE];
-			xo_emit("  {:L1I_CACHE_HIT_RATE/%F}\n", f);
+			xo_emit("  L1I_CACHE_HIT_RATE: "
+			    "{:L1I_CACHE_HIT_RATE/%F}\n", f);
 
 			f = pmc_values[COUNTERSET_INSTR_INDEX_BR_PRED];
 			f /= pmc_values[COUNTERSET_INSTR_INDEX_BR_MIS_PRED] +
 			    pmc_values[COUNTERSET_INSTR_INDEX_BR_PRED];
-			xo_emit("  {:BR_PRED_RATE/%F}\n", f);
+			xo_emit("  BR_PRED_RATE: "
+			    "{:BR_PRED_RATE/%F}\n", f);
 		}
 #endif
 		if (!qflag) {
