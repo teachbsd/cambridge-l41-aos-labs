@@ -1,5 +1,4 @@
 #!/bin/sh
-
 #
 # Copyright (c) 2022 Domagoj Stolfa
 # All rights reserved.
@@ -24,46 +23,60 @@
 # LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
-#
 
-usage() {
-	cat >&2 <<__EOF__
-usage: $(basename $0) [-f]
-__EOF__
+JUPYTER_PORT="8080"
+
+warn() {
+	echo "${@}" >&2
+}
+
+die() {
+	warn "${@}"
 	exit 1
 }
 
-force_run=0
+usage() {
+	die "usage: $(basename "${0}") [-f]"
+}
 
-while getopts f o; do
-	case $o in
-	f)
-		force_run=1
-		;;
-	?)
-		usage
-		;;
-	esac
-	shift $((OPTIND-1))
-done
+main() {
+	# shellcheck disable=SC3043
+	local _flag _force _running
 
-# Hack to see if python is already running somewhere.
-running=$(ps auxw | grep "[p]ython")
+	_force=0
 
-if [ ! -z "${running}" ]; then
-	# Pretty print the error. This is messy but does the job.
-	cat >&2 <<__EOF__
-Jupyter is already running. Please turn off the following processes manually:
+	while getopts "f" _flag; do
+		case "${_flag}" in
+		f)
+			_force=1
+			;;
+		*)
+			usage
+			;;
+		esac
+	done
+	shift $((OPTIND - 1))
 
-__EOF__
-	echo "${running}" | awk '{ print "\t"$2 > "/dev/stderr" }'
-	>&2 echo ""
-	if [ ${force_run} = 0 ]; then
-		exit 1
-	else
-		echo "-f is specified. Running anyway!"
+	# Check if there is any Jupyter Notebook or IPython kernel process
+	# running.
+	if _running="$(pgrep -lf "jupyter-lab|ipykernel_launcher")"; then
+		warn "Jupyter is already running with the following processes:"
+		warn "${_running}"
+		if [ "${_force}" = 0 ]; then
+			die "Terminate the above processes and try again."
+		else
+			warn "The force flag was specified. Running anyway."
+		fi
 	fi
-fi
 
-# We don't currently use 'lockf', and instead specify --port-retries=0.
-jupyter-lab --port=8080 --allow-root --no-browser --port-retries=0
+	# Run the Jupyter Notebook and don't try to find a random port instead
+	# of the specified one.
+	#
+	# In practice, this works as if we used a lock, e.g. with flock(2) or
+	# pidfile_open(3), to make sure there's only one Jupyter Notebook
+	# process running.
+	jupyter-lab --port="${JUPYTER_PORT}" --allow-root --no-browser \
+	    --port-retries=0
+}
+
+main "${@}"
