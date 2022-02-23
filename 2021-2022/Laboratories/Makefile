@@ -10,7 +10,6 @@ LAB2_FILES=					\
 	LICENSE					\
 	ipc/ipc.c				\
 	ipc/Makefile				\
-	runjupyter				\
 	2021-2022-l41-lab2.ipynb
 
 ALL=${LAB1_TARBALL} ${LAB2_TARBALL}
