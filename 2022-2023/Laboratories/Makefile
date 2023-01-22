@@ -1,18 +1,23 @@
-LAB1_TARBALL=2021-2022-advopsys-lab1.tbz
+LAB1_TARBALL=2022-2023-advopsys-lab1.tbz
 LAB1_FILES=					\
+	LICENSE					\
+	2022-2023-advopsys-lab1.ipynb
+
+LAB2_TARBALL=2022-2023-advopsys-lab2.tbz
+LAB2_FILES=					\
 	LICENSE					\
 	io/io.c					\
 	io/Makefile				\
-	2021-2022-l41-lab1.ipynb
+	2022-2023-advopsys-lab2.ipynb
 
-LAB2_TARBALL=2021-2022-advopsys-lab2.tbz
-LAB2_FILES=					\
+LAB3_TARBALL=2022-2023-advopsys-lab3.tbz
+LAB3_FILES=					\
 	LICENSE					\
 	ipc/ipc.c				\
 	ipc/Makefile				\
-	2021-2022-l41-lab2.ipynb
+	2022-2023-advopsys-lab3.ipynb
 
-ALL=${LAB1_TARBALL} ${LAB2_TARBALL}
+ALL=${LAB1_TARBALL} ${LAB2_TARBALL} ${LAB3_TARBALL}
 
 all: ${ALL}
 distribute: all
@@ -26,3 +31,6 @@ ${LAB1_TARBALL}: ${LAB1_FILES} Makefile
 
 ${LAB2_TARBALL}: ${LAB2_FILES} Makefile
 	tar -czf ${LAB2_TARBALL} ${LAB2_FILES}
+
+${LAB3_TARBALL}: ${LAB3_FILES} Makefile
+	tar -czf ${LAB3_TARBALL} ${LAB3_FILES}
