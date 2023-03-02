@@ -10,7 +10,12 @@ LAB2_FILES=					\
 	ipc/Makefile				\
 	2022-2023-advopsys-lab2.ipynb
 
-ALL=${LAB1_TARBALL} ${LAB2_TARBALL}
+LAB3_TARBALL=2022-2023-advopsys-lab3-partii.tbz
+LAB3_FILES=					\
+	LICENSE					\
+	2022-2023-advopsys-lab3-partii.ipynb
+
+ALL=${LAB1_TARBALL} ${LAB2_TARBALL} ${LAB3_TARBALL}
 
 all: ${ALL}
 distribute: all
@@ -24,3 +29,6 @@ ${LAB1_TARBALL}: ${LAB1_FILES} Makefile
 
 ${LAB2_TARBALL}: ${LAB2_FILES} Makefile
 	tar -czf ${LAB2_TARBALL} ${LAB2_FILES}
+
+${LAB3_TARBALL}: ${LAB3_FILES} Makefile
+	tar -czf ${LAB3_TARBALL} ${LAB3_FILES}
