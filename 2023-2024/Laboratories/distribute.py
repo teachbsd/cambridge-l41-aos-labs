@@ -12,7 +12,7 @@ for rpi in rpinums:
     output = subprocess.run(cmdstr)
     cmdstr = ["ssh", "root@" + rpistr, "mkdir -p /advopsys-packages/labs"]
     output = subprocess.run(cmdstr)
-    cmdstr = ["scp", "2022-2023-advopsys-lab1.tbz",
-      "2022-2023-advopsys-lab2.tbz", "2022-2023-advopsys-lab3.tbz",
+    cmdstr = ["scp", "2023-2024-advopsys-lab1.tbz",
+      "2023-2024-advopsys-lab2.tbz", "2023-2024-advopsys-lab3.tbz",
       "root@" + rpistr + ":/advopsys-packages/labs/"]
     output = subprocess.run(cmdstr)
