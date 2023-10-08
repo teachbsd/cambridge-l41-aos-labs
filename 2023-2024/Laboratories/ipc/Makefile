@@ -1,25 +1,21 @@
-all: ipc-benchmark
+all: ipc-benchmark ipc-static ipc-dynamic
 
-CFLAGS=-DWITH_PMC -Wall
+CFLAGS=-Wall -g
 
-ipc-static: ipc-static.o
+.o: .c
+	cc ${CFLAGS} -c -Wall -o ${.TARGET} ipc.c -static
+
+pmc.o: pmc.c pmc.h
+ipc.o: pmc.h
+
+ipc-static: ipc.o pmc.o
 	c++ -o ${.TARGET} ${.ALLSRC} -lpmc -lpthread -static -lxo -lutil
 
-ipc-static.o: ipc.c
-	cc ${CFLAGS} -c -Wall -o ${.TARGET} -DPROGNAME=\"${.TARGET}\" ipc.c -static
-
-ipc-dynamic: ipc-dynamic.o
+ipc-dynamic: ipc.o pmc.o
 	c++ -o ${.TARGET} ${.ALLSRC} -lpmc -lpthread -dynamic -lxo -lutil
 
-ipc-dynamic.o: ipc.c
-	cc ${CFLAGS} -c -Wall -o ${.TARGET} -DPROGNAME=\"${.TARGET}\" ipc.c -dynamic
-
-ipc-benchmark: ipc-benchmark.o
+ipc-benchmark: ipc.o pmc.o
 	c++ -o ${.TARGET} ${.ALLSRC} -lpmc -lpthread -dynamic -lxo -lutil
-
-ipc-benchmark.o: ipc.c
-	cc ${CFLAGS} -c -Wall -o ${.TARGET} -DPROGNAME=\"ipc-benchmark\" ipc.c -dynamic
 
 clean:
-	rm -f ipc-dynamic.o ipc-dynamic ipc-static.o ipc-static \
-	    ipc-benchmark ipc-benchmark.o
+	rm -f ipc-dynamic ipc-static ipc-benchmark pmc.o ipc.o

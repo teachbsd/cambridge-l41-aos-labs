@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2015, 2020-2022 Robert N. M. Watson
+ * Copyright (c) 2015, 2020-2023 Robert N. M. Watson
  * Copyright (c) 2015 Bjoern A. Zeeb
  * All rights reserved.
  *
@@ -43,9 +43,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
-#ifdef WITH_PMC
 #include <pmc.h>
-#endif
 #include <libxo/xo.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -55,6 +53,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "pmc.h"
 
 /*
  * L41: Labs 2 and 3 - IPC and TCP.  This benchmark pushes data through one of
@@ -122,234 +121,7 @@ static long msgcount;			/* Derived number of messages. */
 #define	max(x, y)	((x) > (y) ? (x) : (y))
 #define	min(x, y)	((x) < (y) ? (x) : (y))
 
-#ifdef WITH_PMC
-#define	COUNTERSET_MAX_EVENTS	6	/* Maximum hardware registers */
-
-/* Always collect this data; allow other counters to be configured. */
-#define	COUNTERSET_HEADER						\
-	"INST_RETIRED",		/* Instructions retired */		\
-	"CPU_CYCLES"		/* Cycle counter */
-
-#define	COUNTERSET_HEADER_INSTR_EXECUTED	0	/* Array index */
-#define	COUNTERSET_HEADER_CLOCK_CYCLES		1	/* Array index */
-
-/*
- * In principle ARMv8-A supports non-speculative LD_RETIRED, ST_RETIRED, and
- * BR_RETURN_RETIRED.  However, the A72 doesn't, so we have to use counters
- * for speculatively executed operations.  Possibly we might prefer to use the
- * MEM_ACCESS_LD and MEM_ACCESS_ST counters instead.  But, as a result of all
- * of this, 'arch' isn't really representative.
- */
-static const char *counterset_arch[COUNTERSET_MAX_EVENTS] = {
-	COUNTERSET_HEADER,
-	"LD_SPEC",		/* Speculated loads (any width) */
-	"ST_SPEC",		/* Speculated stores (any width) */
-	"EXC_RETURN",		/* Architectural exception returns */
-	"BR_RETURN_SPEC",	/* Speculated function returns */
-};
-
-/*
- * NB: Keep INDEX constants in sync, as they are used to calculate derived
- * values such as cache miss rates.
- */
-static const char *counterset_dcache[COUNTERSET_MAX_EVENTS] = {
-	COUNTERSET_HEADER,
-#define	COUNTERSET_DCACHE_INDEX_L1D_CACHE		2
-	"L1D_CACHE",		/* Level-1 data-cache hits */
-#define	COUNTERSET_DCACHE_INDEX_L1D_CACHE_REFILL	3
-	"L1D_CACHE_REFILL",	/* Level-1 data-cache misses */
-#define	COUNTERSET_DCACHE_INDEX_L2D_CACHE		4
-	"L2D_CACHE",		/* Level-2 cache hits */
-#define	COUNTERSET_DCACHE_INDEX_L2D_CACHE_REFILL	5
-	"L2D_CACHE_REFILL",	/* Level-2 cache misses */
-};
-
-static const char *counterset_instr[COUNTERSET_MAX_EVENTS] = {
-	COUNTERSET_HEADER,
-#define	COUNTERSET_INSTR_INDEX_L1I_CACHE		2
-	"L1I_CACHE",		/* Level-1 instruction-cache hits */
-#define	COUNTERSET_INSTR_INDEX_L1I_CACHE_REFILL		3
-	"L1I_CACHE_REFILL",	/* Level-1 instruction-cache misses */
-#define	COUNTERSET_INSTR_INDEX_BR_MIS_PRED		4
-	"BR_MIS_PRED",		/* Speculative branch mispredicted */
-#define	COUNTERSET_INSTR_INDEX_BR_PRED			5
-	"BR_PRED",		/* Specualtive branch predicted */
-};
-
-static const char *counterset_tlbmem[COUNTERSET_MAX_EVENTS] = {
-	COUNTERSET_HEADER,
-	"L1D_TLB_REFILL",	/* Data-TLB refills */
-	"L1I_TLB_REFILL",	/* Instruction-TLB refills */
-	"MEM_ACCESS",		/* Memory reads/writes issued by instructions */
-	"BUS_ACCESS",		/* Memory accesses over the bus */
-};
-
-#define	BENCHMARK_PMC_NONE_STRING	"none"
-#define	BENCHMARK_PMC_INVALID_STRING	"invalid"
-#define	BENCHMARK_PMC_ARCH_STRING	"arch"
-#define	BENCHMARK_PMC_DCACHE_STRING	"dcache"
-#define	BENCHMARK_PMC_INSTR_STRING	"instr"
-#define	BENCHMARK_PMC_TLBMEM_STRING	"tlbmem"
-
-#define	BENCHMARK_PMC_INVALID		-1
-#define	BENCHMARK_PMC_NONE		0
-#define	BENCHMARK_PMC_ARCH		1
-#define	BENCHMARK_PMC_DCACHE		2
-#define	BENCHMARK_PMC_INSTR		3
-#define	BENCHMARK_PMC_TLBMEM		4
-
-#define	BENCHMARK_PMC_DEFAULT	BENCHMARK_PMC_NONE
-static unsigned int benchmark_pmc = BENCHMARK_PMC_NONE;
-
-static pmc_id_t pmcid[COUNTERSET_MAX_EVENTS];
-static uint64_t pmc_values[COUNTERSET_MAX_EVENTS];
-
-static const char **counterset;		/* The actual counter set in use. */
-
 int	__sys_clock_gettime(__clockid_t, struct timespec *ts);
-
-static void
-pmc_setup_run(void)
-{
-	int i;
-
-	switch (benchmark_pmc) {
-	case BENCHMARK_PMC_NONE:
-		return;
-
-	case BENCHMARK_PMC_ARCH:
-		counterset = counterset_arch;
-		break;
-
-	case BENCHMARK_PMC_DCACHE:
-		counterset = counterset_dcache;
-		break;
-
-	case BENCHMARK_PMC_INSTR:
-		counterset = counterset_instr;
-		break;
-
-	case BENCHMARK_PMC_TLBMEM:
-		counterset = counterset_tlbmem;
-		break;
-
-	default:
-		assert(0);
-	}
-
-	/*
-	 * Use process-mode counting that descends to children processes --
-	 * i.e., to properly account for child behaviour in 2proc.
-	 */
-	bzero(pmc_values, sizeof(pmc_values));
-	for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
-		if (counterset[i] == NULL)
-			continue;
-		if (pmc_allocate(counterset[i], PMC_MODE_TC,
-		    PMC_F_DESCENDANTS, PMC_CPU_ANY, &pmcid[i], 64*1024) < 0)
-			xo_err(EX_OSERR, "FAIL: pmc_allocate %s",
-			    counterset[i]);
-		if (pmc_attach(pmcid[i], 0) != 0)
-			xo_err(EX_OSERR, "FAIL: pmc_attach %s",
-			    counterset[i]);
-		if (pmc_write(pmcid[i], 0) < 0)
-			xo_err(EX_OSERR, "FAIL: pmc_write  %s",
-			    counterset[i]);
-	}
-}
-
-static void
-pmc_teardown_run(void)
-{
-	int i;
-
-	for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
-		if (counterset[i] == NULL)
-			continue;
-		if (pmc_detach(pmcid[i], 0) != 0)
-			xo_err(EX_OSERR, "FAIL: pmc_detach %s",
-			    counterset[i]);
-		if (pmc_release(pmcid[i]) < 0)
-			xo_err(EX_OSERR, "FAIL: pmc_release %s",
-			    counterset[i]);
-	}
-}
-
-static __inline void
-pmc_begin(void)
-{
-	int i;
-
-	for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
-		if (counterset[i] == NULL)
-			continue;
-		if (pmc_start(pmcid[i]) < 0)
-			xo_err(EX_OSERR, "FAIL: pmc_start %s", counterset[i]);
-	}
-}
-
-static __inline void
-pmc_end(void)
-{
-	int i;
-
-	for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
-		if (counterset[i] == NULL)
-			continue;
-		if (pmc_read(pmcid[i], &pmc_values[i]) < 0)
-			xo_err(EX_OSERR, "FAIL: pmc_read %s", counterset[i]);
-	}
-	for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
-		if (counterset[i] == NULL)
-			continue;
-		if (pmc_stop(pmcid[i]) < 0)
-			xo_err(EX_OSERR, "FAIL: pmc_stop %s", counterset[i]);
-	}
-}
-
-static int
-benchmark_pmc_from_string(const char *string)
-{
-
-	if (strcmp(BENCHMARK_PMC_NONE_STRING, string) == -0)
-		return (BENCHMARK_PMC_NONE);
-	else if (strcmp(BENCHMARK_PMC_ARCH_STRING, string) == 0)
-		return (BENCHMARK_PMC_ARCH);
-	else if (strcmp(BENCHMARK_PMC_DCACHE_STRING, string) == 0)
-		return (BENCHMARK_PMC_DCACHE);
-	else if (strcmp(BENCHMARK_PMC_INSTR_STRING, string) == 0)
-		return (BENCHMARK_PMC_INSTR);
-	else if (strcmp(BENCHMARK_PMC_TLBMEM_STRING, string) == 0)
-		return (BENCHMARK_PMC_TLBMEM);
-	else
-		return (BENCHMARK_PMC_INVALID);
-}
-
-static const char *
-benchmark_pmc_to_string(int type)
-{
-
-	switch (type) {
-	case BENCHMARK_PMC_NONE:
-		return (BENCHMARK_PMC_NONE_STRING);
-
-	case BENCHMARK_PMC_ARCH:
-		return (BENCHMARK_PMC_ARCH_STRING);
-
-	case BENCHMARK_PMC_DCACHE:
-		return (BENCHMARK_PMC_DCACHE_STRING);
-
-	case BENCHMARK_PMC_INSTR:
-		return (BENCHMARK_PMC_INSTR_STRING);
-
-	case BENCHMARK_PMC_TLBMEM:
-		return (BENCHMARK_PMC_TLBMEM_STRING);
-
-	default:
-		return (BENCHMARK_PMC_INVALID_STRING);
-	}
-}
-#endif
 
 static int
 ipc_type_from_string(const char *string)
@@ -432,10 +204,8 @@ usage(void)
 	xo_error(
 	    "%s [-Bgjqsv] [-b buffersize] [-i pipe|local|tcp] [-n iterations]\n"
 	    "    [-p tcp_port]"
-#ifdef WITH_PMC
 	    " [-P arch|dcache|instr|tlbmem]"
-#endif
-	    " [-t totalsize] mode\n", PROGNAME);
+	    " [-t totalsize] mode\n", getprogname());
 	xo_error("\n"
   "Modes (pick one - default %s):\n"
   "    1thread     IPC within a single thread\n"
@@ -449,9 +219,7 @@ usage(void)
   "    -i pipe|local|tcp      Select pipe, local sockets, or TCP (default: %s)\n"
   "    -j                     Output as JSON\n"
   "    -p tcp_port            Set TCP port number (default: %u)\n"
-#ifdef WITH_PMC
   "    -P arch|dcache|instr|tlbmem  Enable hardware performance counters\n"
-#endif
   "    -q                     Just run the benchmark, don't print stuff out\n"
   "    -s                     Set send/receive socket-buffer sizes to buffersize\n"
   "    -v                     Provide a verbose benchmark description\n"
@@ -499,10 +267,8 @@ sender(struct sender_argument *sap)
 
 	if (__sys_clock_gettime(CLOCK_REALTIME, &sap->sa_starttime) < 0)
 		xo_err(EX_OSERR, "FAIL: __sys_clock_gettime");
-#ifdef WITH_PMC
 	if (benchmark_pmc != BENCHMARK_PMC_NONE)
 		pmc_begin();
-#endif
 
 	/*
 	 * HERE BEGINS THE BENCHMARK (2-thread/2-proc).
@@ -549,10 +315,8 @@ receiver(int readfd, void *buf)
 	/*
 	 * HERE ENDS THE BENCHMARK (2-thread/2-proc).
 	 */
-#ifdef WITH_PMC
 	if (benchmark_pmc != BENCHMARK_PMC_NONE)
 		pmc_end();
-#endif
 	if (__sys_clock_gettime(CLOCK_REALTIME, &finishtime) < 0)
 		xo_err(EX_OSERR, "FAIL: __sys_clock_gettime");
 	return (finishtime);
@@ -678,10 +442,8 @@ do_1thread(int readfd, int writefd, long msgcount, void *readbuf,
 
 	if (__sys_clock_gettime(CLOCK_REALTIME, &starttime) < 0)
 		xo_err(EX_OSERR, "FAIL: __sys_clock_gettime");
-#ifdef WITH_PMC
 	if (benchmark_pmc != BENCHMARK_PMC_NONE)
 		pmc_begin();
-#endif
 
 	/*
 	 * HERE BEGINS THE BENCHMARK (1-thread).
@@ -730,10 +492,8 @@ do_1thread(int readfd, int writefd, long msgcount, void *readbuf,
 	/*
 	 * HERE ENDS THE BENCHMARK (1-thread).
 	 */
-#ifdef WITH_PMC
 	if (benchmark_pmc != BENCHMARK_PMC_NONE)
 		pmc_end();
-#endif
 	if (__sys_clock_gettime(CLOCK_REALTIME, &finishtime) < 0)
 		xo_err(EX_OSERR, "FAIL: __sys_clock_gettime");
 	timespecsub(&finishtime, &starttime, &finishtime);
@@ -1089,12 +849,9 @@ ipc(void)
 	struct timeval tv_self, tv_children, tv_total;
 	struct timespec ts;
 	void *readbuf, *writebuf;
-	int i, iteration, readfd, writefd;
+	int iteration, readfd, writefd;
 	double secs, rate;
 	cpuset_t cpuset_mask;
-#ifdef WITH_PMC
-	float f;
-#endif
 
 	/*
 	 * For the purposes of lab simplicity, pin the benchmark (this process
@@ -1106,13 +863,11 @@ ipc(void)
 	    sizeof(cpuset_mask), &cpuset_mask) < 0)
 		xo_err(EX_OSERR, "FAIL: cpuset_setaffinity");
 
-#ifdef WITH_PMC
 	/*
 	 * Set up the PMC library -- things done only once.
 	 */
 	if ((benchmark_pmc != BENCHMARK_PMC_NONE) && (pmc_init() < 0))
 		xo_err(EX_OSERR, "FAIL: pmc_init");
-#endif
 
 	/*
 	 * Allocate zero-filled memory for our IPC buffer.  Explicitly fill so
@@ -1136,14 +891,12 @@ ipc(void)
 	if (!qflag)
 		xo_open_list("benchmark_samples");
 	for (iteration = 0; iteration < iterations; iteration++) {
-#ifdef WITH_PMC
 		/*
 		 * Allocate and initialise performance counters, if required.
 		 * Things done once per iteration.
 		 */
 		if (benchmark_pmc != BENCHMARK_PMC_NONE)
 			pmc_setup_run();
-#endif
 
 		/*
 		 * Allocate and connect a suitable IPC object handle pair.
@@ -1286,59 +1039,8 @@ ipc(void)
 			    (rusage_children_after.ru_nivcsw -
 			    rusage_children_before.ru_nivcsw));
 		}
-#ifdef WITH_PMC
-		/* Print baseline measured counters. */
-		if (!qflag && (benchmark_pmc != BENCHMARK_PMC_NONE)) {
-			for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
-				if (counterset[i] == NULL)
-					continue;
-				if (jflag)
-					xo_emit_field("V", counterset[i],
-					  NULL, "%ju", pmc_values[i]);
-				else
-					xo_emit_field("V", counterset[i],
-					    "  %s: %ju\n", NULL, counterset[i],
-					    pmc_values[i]);
-			}
-		}
-
-		/*
-		 * Print out a few derived metrics that are easier to
-		 * calculate here than later.
-		 */
-		if (!qflag && (benchmark_pmc != BENCHMARK_PMC_NONE)) {
-			xo_emit("  CYCLES_PER_INSTRUCTION: "
-			  "{:CYCLES_PER_INSTRUCTION/%F}\n",
-			  (float)pmc_values[COUNTERSET_HEADER_CLOCK_CYCLES] /
-			  (float)pmc_values[COUNTERSET_HEADER_INSTR_EXECUTED]);
-		}
-		if (!qflag && (benchmark_pmc == BENCHMARK_PMC_DCACHE)) {
-			f = pmc_values[COUNTERSET_DCACHE_INDEX_L1D_CACHE] -
-			   pmc_values[COUNTERSET_DCACHE_INDEX_L1D_CACHE_REFILL];
-			f /= pmc_values[COUNTERSET_DCACHE_INDEX_L1D_CACHE];
-			xo_emit("  L1D_CACHE_HIT_RATE: "
-			   "{:L1D_CACHE_HIT_RATE/%F}\n", f);
-
-			f = pmc_values[COUNTERSET_DCACHE_INDEX_L2D_CACHE] -
-			   pmc_values[COUNTERSET_DCACHE_INDEX_L2D_CACHE_REFILL];
-			f /= pmc_values[COUNTERSET_DCACHE_INDEX_L2D_CACHE];
-			xo_emit("  L2D_CACHE_HIT_RATE: "
-			   "{:L2D_CACHE_HIT_RATE/%F}\n", f);
-		}
-		if (!qflag && (benchmark_pmc == BENCHMARK_PMC_INSTR)) {
-			f = pmc_values[COUNTERSET_INSTR_INDEX_L1I_CACHE] -
-			    pmc_values[COUNTERSET_INSTR_INDEX_L1I_CACHE_REFILL];
-			f /= pmc_values[COUNTERSET_INSTR_INDEX_L1I_CACHE];
-			xo_emit("  L1I_CACHE_HIT_RATE: "
-			    "{:L1I_CACHE_HIT_RATE/%F}\n", f);
-
-			f = pmc_values[COUNTERSET_INSTR_INDEX_BR_PRED];
-			f /= pmc_values[COUNTERSET_INSTR_INDEX_BR_MIS_PRED] +
-			    pmc_values[COUNTERSET_INSTR_INDEX_BR_PRED];
-			xo_emit("  BR_PRED_RATE: "
-			    "{:BR_PRED_RATE/%F}\n", f);
-		}
-#endif
+		if (!qflag)
+			pmc_print(jflag);
 		if (!qflag) {
 			xo_close_instance("datum");
 			xo_flush();
@@ -1347,10 +1049,8 @@ ipc(void)
 		/*
 		 * Just a little cleaning up between runs.
 		 */
-#ifdef WITH_PMC
 		if (benchmark_pmc != BENCHMARK_PMC_NONE)
 			pmc_teardown_run();
-#endif
 		close(readfd);
 		close(writefd);
 	}
@@ -1380,11 +1080,7 @@ main(int argc, char *argv[])
 
 	buffersize = BUFFERSIZE;
 	totalsize = TOTALSIZE;
-	while ((ch = getopt(argc, argv, "Bb:gi:jn:p:P:qst:v"
-#ifdef WITH_PMC
-	"P:"
-#endif
-	    )) != -1) {
+	while ((ch = getopt(argc, argv, "Bb:gi:jn:p:P:qst:vP:")) != -1) {
 		switch (ch) {
 		case 'B':
 			Bflag++;
@@ -1422,13 +1118,11 @@ main(int argc, char *argv[])
 			tcp_port = l;
 			break;
 
-#ifdef WITH_PMC
 		case 'P':
 			benchmark_pmc = benchmark_pmc_from_string(optarg);
 			if (benchmark_pmc == BENCHMARK_PMC_INVALID)
 				usage();
 			break;
-#endif
 		case 'g':
 			gflag++;
 			break;
