@@ -25,20 +25,8 @@
  * SUCH DAMAGE.
  */
 
-#define	COUNTERSET_MAX_EVENTS	6	/* Maximum hardware registers */
-
-/* Always collect this data; allow other counters to be configured. */
-#define	COUNTERSET_HEADER						\
-	"INST_RETIRED",		/* Instructions retired */		\
-	"CPU_CYCLES"		/* Cycle counter */
-
-#define	COUNTERSET_HEADER_INSTR_EXECUTED	0	/* Array index */
-#define	COUNTERSET_HEADER_CLOCK_CYCLES		1	/* Array index */
-
-extern const char *counterset_arch[COUNTERSET_MAX_EVENTS];
-extern const char *counterset_dcache[COUNTERSET_MAX_EVENTS];
-extern const char *counterset_instr[COUNTERSET_MAX_EVENTS];
-extern const char *counterset_tlbmem[COUNTERSET_MAX_EVENTS];
+#ifndef PMC_H
+#define	PMC_H
 
 #define	BENCHMARK_PMC_NONE_STRING	"none"
 #define	BENCHMARK_PMC_INVALID_STRING	"invalid"
@@ -57,14 +45,16 @@ extern const char *counterset_tlbmem[COUNTERSET_MAX_EVENTS];
 #define	BENCHMARK_PMC_DEFAULT	BENCHMARK_PMC_NONE
 extern unsigned int benchmark_pmc;
 
+#define	COUNTERSET_MAX_EVENTS	6	/* Maximum hardware registers */
+
+/* Used by inline functions in this header. */
 extern pmc_id_t pmcid[COUNTERSET_MAX_EVENTS];
 extern uint64_t pmc_values[COUNTERSET_MAX_EVENTS];
-
-extern const char **counterset;		/* The actual counter set in use. */
+extern const char **counterset;
 
 void	pmc_setup_run(void);
 void	pmc_teardown_run(void);
-void	pmc_print(int json);
+void	pmc_print(void);
 int	benchmark_pmc_from_string(const char *string);
 const char *benchmark_pmc_to_string(int type);
 
@@ -99,3 +89,5 @@ pmc_end(void)
 			xo_err(EX_OSERR, "FAIL: pmc_stop %s", counterset[i]);
 	}
 }
+
+#endif /* PMC_H */

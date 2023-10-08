@@ -53,7 +53,13 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "main.h"
 #include "pmc.h"
+
+/* Always collect this data; allow other counters to be configured. */
+#define	COUNTERSET_HEADER						\
+	"INST_RETIRED",		/* Instructions retired */		\
+	"CPU_CYCLES"		/* Cycle counter */
 
 /*
  * In principle ARMv8-A supports non-speculative LD_RETIRED, ST_RETIRED, and
@@ -62,7 +68,7 @@
  * MEM_ACCESS_LD and MEM_ACCESS_ST counters instead.  But, as a result of all
  * of this, 'arch' isn't really representative.
  */
-const char *counterset_arch[COUNTERSET_MAX_EVENTS] = {
+static const char *counterset_arch[COUNTERSET_MAX_EVENTS] = {
 	COUNTERSET_HEADER,
 	"LD_SPEC",		/* Speculated loads (any width) */
 	"ST_SPEC",		/* Speculated stores (any width) */
@@ -70,11 +76,14 @@ const char *counterset_arch[COUNTERSET_MAX_EVENTS] = {
 	"BR_RETURN_SPEC",	/* Speculated function returns */
 };
 
+#define	COUNTERSET_HEADER_INSTR_EXECUTED	0	/* Array index */
+#define	COUNTERSET_HEADER_CLOCK_CYCLES		1	/* Array index */
+
 /*
  * NB: Keep INDEX constants in sync, as they are used to calculate derived
  * values such as cache miss rates.
  */
-const char *counterset_dcache[COUNTERSET_MAX_EVENTS] = {
+static const char *counterset_dcache[COUNTERSET_MAX_EVENTS] = {
 	COUNTERSET_HEADER,
 #define	COUNTERSET_DCACHE_INDEX_L1D_CACHE		2
 	"L1D_CACHE",		/* Level-1 data-cache hits */
@@ -86,7 +95,7 @@ const char *counterset_dcache[COUNTERSET_MAX_EVENTS] = {
 	"L2D_CACHE_REFILL",	/* Level-2 cache misses */
 };
 
-const char *counterset_instr[COUNTERSET_MAX_EVENTS] = {
+static const char *counterset_instr[COUNTERSET_MAX_EVENTS] = {
 	COUNTERSET_HEADER,
 #define	COUNTERSET_INSTR_INDEX_L1I_CACHE		2
 	"L1I_CACHE",		/* Level-1 instruction-cache hits */
@@ -98,7 +107,7 @@ const char *counterset_instr[COUNTERSET_MAX_EVENTS] = {
 	"BR_PRED",		/* Specualtive branch predicted */
 };
 
-const char *counterset_tlbmem[COUNTERSET_MAX_EVENTS] = {
+static const char *counterset_tlbmem[COUNTERSET_MAX_EVENTS] = {
 	COUNTERSET_HEADER,
 	"L1D_TLB_REFILL",	/* Data-TLB refills */
 	"L1I_TLB_REFILL",	/* Instruction-TLB refills */
@@ -239,7 +248,7 @@ benchmark_pmc_to_string(int type)
 }
 
 void
-pmc_print(int json)
+pmc_print(void)
 {
 	float f;
 	int i;
@@ -251,7 +260,7 @@ pmc_print(int json)
 	for (i = 0; i < COUNTERSET_MAX_EVENTS; i++) {
 		if (counterset[i] == NULL)
 			continue;
-		if (json)
+		if (jflag)
 			xo_emit_field("V", counterset[i],
 			  NULL, "%ju", pmc_values[i]);
 		else
