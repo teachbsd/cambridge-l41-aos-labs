@@ -155,23 +155,25 @@ ipc_objects_allocate_shmem(intptr_t *readfdp, intptr_t *writefdp)
 		xo_err(EX_OSERR, "minherit");
 
 	/*
-	 * Use a shared mutex in case this is a 2proc configuration.
+	 * Intialise mutex and condition variables as 'shared' only if we will
+	 * use them from more than one process.
 	 */
 	if (pthread_mutexattr_init(&mattr) < 0)
 		xo_err(EX_OSERR, "pthread_mutexattr_init");
-	if (pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED) < 0)
-		xo_err(EX_OSERR, "pthread_mutexattr_setpshared");
+	if (benchmark_mode == BENCHMARK_MODE_2PROC) {
+		if (pthread_mutexattr_setpshared(&mattr,
+		    PTHREAD_PROCESS_SHARED) < 0)
+			xo_err(EX_OSERR, "pthread_mutexattr_setpshared");
+	}
 	if (pthread_mutex_init(&shmem_metadata_ptr->sm_mutex, &mattr) < 0)
 		xo_err(EX_OSERR, "pthread_mutex_init");
-
-	/*
-	 * Likewise 2x condition variables in case this is a 2proc
-	 * configuration.
-	 */
 	if (pthread_condattr_init(&cattr) < 0)
 		xo_err(EX_OSERR, "pthread_condattr_int");
-	if (pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED) < 0)
-		xo_err(EX_OSERR, "pthread_condattr_setpshared");
+	if (benchmark_mode == BENCHMARK_MODE_2PROC) {
+		if (pthread_condattr_setpshared(&cattr,
+		    PTHREAD_PROCESS_SHARED) < 0)
+			xo_err(EX_OSERR, "pthread_condattr_setpshared");
+	}
 	if (pthread_cond_init(&shmem_metadata_ptr->sm_cond_empty, &cattr) < 0)
 		xo_err(EX_OSERR, "pthread_cond_init");
 	if (pthread_cond_init(&shmem_metadata_ptr->sm_cond_full, &cattr) < 0)
