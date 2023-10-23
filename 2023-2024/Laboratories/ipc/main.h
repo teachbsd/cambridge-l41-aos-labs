@@ -29,13 +29,12 @@
 #define	MAIN_H
 
 extern unsigned int Bflag;	/* bare */
-static unsigned int gflag;	/* getrusage */
-static unsigned int jflag;	/* JSON */
-static unsigned int qflag;	/* quiet */
-static unsigned int sflag;	/* set socket-buffer sizes */
+extern unsigned int gflag;	/* getrusage */
+extern unsigned int jflag;	/* JSON */
+extern unsigned int qflag;	/* quiet */
+extern unsigned int sflag;	/* set socket-buffer sizes */
 
 #define	BENCHMARK_MODE_INVALID		-1
-#define	BENCHMARK_MODE_1THREAD		1
 #define	BENCHMARK_MODE_2THREAD		2
 #define	BENCHMARK_MODE_2PROC		3
 #define	BENCHMARK_MODE_DESCRIBE		4
@@ -44,6 +43,7 @@ static unsigned int sflag;	/* set socket-buffer sizes */
 #define	BENCHMARK_IPC_PIPE		1
 #define	BENCHMARK_IPC_LOCAL_SOCKET	2
 #define	BENCHMARK_IPC_TCP_SOCKET	3
+#define	BENCHMARK_IPC_SHMEM		4
 
 extern unsigned int benchmark_mode;
 extern unsigned int ipc_type;

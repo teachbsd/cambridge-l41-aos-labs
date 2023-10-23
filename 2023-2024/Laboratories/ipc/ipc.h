@@ -28,6 +28,31 @@
 #ifndef IPC_H
 #define	IPC_H
 
+/*
+ * Front end of the benchmark called from main().
+ */
 void	ipc(void);
+
+/*
+ * APIs for file-descriptor-based and shared-memory-based IPC.
+ */
+struct sender_argument {
+	struct timespec	 sa_starttime;	/* Sender stores start time here. */
+	intptr_t	 sa_write_handle; /* Caller provides send fd here. */
+	long		 sa_msgcount;	/* Caller provides msg count here. */
+	void		*sa_buffer;	/* Caller provides buffer here. */
+}; 
+ 
+void	sender_fd(struct sender_argument *sap);
+void	receiver_fd(intptr_t readfd, void *buf);
+void	ipc_objects_allocate_fd(intptr_t *read_handlep,
+	    intptr_t *write_handlep);
+void	ipc_objects_free_fd(intptr_t read_handle, intptr_t write_handle);
+
+void	sender_shmem(struct sender_argument *sap);
+void	receiver_shmem(intptr_t readfd, void *buf);
+void	ipc_objects_allocate_shmem(intptr_t *read_handlep,
+	    intptr_t *write_handlep);
+void	ipc_objects_free_shmem(intptr_t read_handle, intptr_t write_handle);
 
 #endif /* IPC_H */

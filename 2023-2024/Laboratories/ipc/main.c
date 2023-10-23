@@ -58,11 +58,11 @@
 
 /*
  * L41: Labs 2 and 3 - IPC and TCP.  This benchmark pushes data through one of
- * several choices of IPC (pipes, local domain sockets, TCP sockets) with
- * various I/O parameters including a configurable userspace buffer size, and
- * in one of several mods (1thread, 2thread, 2proc).  It is able to capture
- * timestamps, getrusage data, and performance counter data on its behaviour
- * (using Arm's A72 counter set).  And it can print in text or JSON.
+ * several choices of IPC (pipes, local domain sockets, TCP sockets, shared
+ * memory) with various I/O parameters including a configurable userspace
+ * buffer size, and in one of several mods (2thread, 2proc).  It is able to
+ * capture timestamps, getrusage data, and performance counter data on its
+ * behaviour (using Arm's A72 counter set).  And it can print in text or JSON.
  */
 
 unsigned int Bflag;	/* bare */
@@ -78,29 +78,29 @@ static unsigned int vflag;	/* verbose */
  * Which mode is the benchmark operating in?
  */
 #define	BENCHMARK_MODE_INVALID_STRING	"invalid"
-#define	BENCHMARK_MODE_1THREAD_STRING	"1thread"
 #define	BENCHMARK_MODE_2THREAD_STRING	"2thread"
 #define	BENCHMARK_MODE_2PROC_STRING	"2proc"
 #define	BENCHMARK_MODE_DESCRIBE_STRING	"describe"
 
 #define	BENCHMARK_MODE_INVALID		-1
-#define	BENCHMARK_MODE_1THREAD		1
 #define	BENCHMARK_MODE_2THREAD		2
 #define	BENCHMARK_MODE_2PROC		3
 #define	BENCHMARK_MODE_DESCRIBE		4
 
-#define	BENCHMARK_MODE_DEFAULT		BENCHMARK_MODE_1THREAD
+#define	BENCHMARK_MODE_DEFAULT		BENCHMARK_MODE_2THREAD
 unsigned int benchmark_mode = BENCHMARK_MODE_DEFAULT;
 
 #define	BENCHMARK_IPC_INVALID_STRING	"invalid"
 #define	BENCHMARK_IPC_PIPE_STRING	"pipe"
 #define	BENCHMARK_IPC_LOCAL_SOCKET_STRING	"local"
 #define	BENCHMARK_IPC_TCP_SOCKET_STRING		"tcp"
+#define	BENCHMARK_IPC_SHMEM_STRING		"shmem"
 
 #define	BENCHMARK_IPC_INVALID		-1
 #define	BENCHMARK_IPC_PIPE		1
 #define	BENCHMARK_IPC_LOCAL_SOCKET		2
 #define	BENCHMARK_IPC_TCP_SOCKET		3
+#define	BENCHMARK_IPC_SHMEM			4
 
 #define	BENCHMARK_IPC_DEFAULT		BENCHMARK_IPC_PIPE
 unsigned int ipc_type = BENCHMARK_IPC_DEFAULT;
@@ -134,6 +134,8 @@ ipc_type_from_string(const char *string)
 		return (BENCHMARK_IPC_LOCAL_SOCKET);
 	else if (strcmp(BENCHMARK_IPC_TCP_SOCKET_STRING, string) == 0)
 		return (BENCHMARK_IPC_TCP_SOCKET);
+	else if (strcmp(BENCHMARK_IPC_SHMEM_STRING, string) == 0)
+		return (BENCHMARK_IPC_SHMEM);
 	else
 		return (BENCHMARK_IPC_INVALID);
 }
@@ -152,6 +154,9 @@ ipc_type_to_string(int type)
 	case BENCHMARK_IPC_TCP_SOCKET:
 		return (BENCHMARK_IPC_TCP_SOCKET_STRING);
 
+	case BENCHMARK_IPC_SHMEM:
+		return (BENCHMARK_IPC_SHMEM_STRING);
+
 	default:
 		return (BENCHMARK_IPC_INVALID_STRING);
 	}
@@ -161,9 +166,7 @@ static int
 benchmark_mode_from_string(const char *string)
 {
 
-	if (strcmp(BENCHMARK_MODE_1THREAD_STRING, string) == 0)
-		return (BENCHMARK_MODE_1THREAD);
-	else if (strcmp(BENCHMARK_MODE_2THREAD_STRING, string) == 0)
+	if (strcmp(BENCHMARK_MODE_2THREAD_STRING, string) == 0)
 		return (BENCHMARK_MODE_2THREAD);
 	else if (strcmp(BENCHMARK_MODE_2PROC_STRING, string) == 0)
 		return (BENCHMARK_MODE_2PROC);
@@ -178,9 +181,6 @@ benchmark_mode_to_string(int mode)
 {
 
 	switch (mode) {
-	case BENCHMARK_MODE_1THREAD:
-		return (BENCHMARK_MODE_1THREAD_STRING);
-
 	case BENCHMARK_MODE_2THREAD:
 		return (BENCHMARK_MODE_2THREAD_STRING);
 
@@ -209,24 +209,23 @@ usage(void)
 	    " [-t totalsize] mode\n", getprogname());
 	xo_error("\n"
   "Modes (pick one - default %s):\n"
-  "    1thread     IPC within a single thread\n"
   "    2thread     IPC between two threads in one process\n"
   "    2proc       IPC between two threads in two different processes\n"
   "    describe    Describe the hardware, OS, and benchmark configurations\n"
   "\n"
   "Optional flags:\n"
-  "    -B                     Run in bare mode: no preparatory activities\n"
-  "    -g                     Enable getrusage(2) collection\n"
-  "    -i pipe|local|tcp      Select pipe, local sockets, or TCP (default: %s)\n"
-  "    -j                     Output as JSON\n"
-  "    -p tcp_port            Set TCP port number (default: %u)\n"
+  "    -B                       Run in bare mode: no preparatory activities\n"
+  "    -g                       Enable getrusage(2) collection\n"
+  "    -i pipe|local|tcp|shmem  Select pipe, local sockets, or TCP (default: %s)\n"
+  "    -j                       Output as JSON\n"
+  "    -p tcp_port              Set TCP port number (default: %u)\n"
   "    -P arch|dcache|instr|tlbmem  Enable hardware performance counters\n"
-  "    -q                     Just run the benchmark, don't print stuff out\n"
-  "    -s                     Set send/receive socket-buffer sizes to buffersize\n"
-  "    -v                     Provide a verbose benchmark description\n"
-  "    -b buffersize          Specify the buffer size (default: %ld)\n"
-  "    -n iterations          Specify the number of times to run (default: %ld)\n"
-  "    -t totalsize           Specify the total I/O size (default: %ld)\n",
+  "    -q                      Just run the benchmark, don't print stuff out\n"
+  "    -s                      Set send/receive socket-buffer sizes to buffersize\n"
+  "    -v                      Provide a verbose benchmark description\n"
+  "    -b buffersize           Specify the buffer size (default: %ld)\n"
+  "    -n iterations           Specify the number of times to run (default: %ld)\n"
+  "    -t totalsize            Specify the total I/O size (default: %ld)\n",
 	    benchmark_mode_to_string(BENCHMARK_MODE_DEFAULT),
 	    ipc_type_to_string(BENCHMARK_IPC_DEFAULT),
 	    BENCHMARK_TCP_PORT_DEFAULT,
