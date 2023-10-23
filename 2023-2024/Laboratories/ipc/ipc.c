@@ -27,21 +27,12 @@
 
 #include <sys/param.h>
 #include <sys/cpuset.h>
-#include <sys/ioctl.h>
 #include <sys/time.h>
 #include <sys/mman.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <sys/sysctl.h>
 #include <sys/wait.h>
-
-#include <net/if.h>
-
-#include <netinet/in.h>
 
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <inttypes.h>
 #include <pmc.h>
 #include <libxo/xo.h>
@@ -56,9 +47,6 @@
 #include "ipc.h"
 #include "main.h"
 #include "pmc.h"
-
-#define	max(x, y)	((x) > (y) ? (x) : (y))
-#define	min(x, y)	((x) < (y) ? (x) : (y))
 
 int	__sys_clock_gettime(__clockid_t, struct timespec *ts);
 
@@ -96,7 +84,7 @@ sender(struct sender_argument *sap)
 		pmc_begin();
 
 	/*
-	 * HERE BEGINS THE BENCHMARK (2-thread/2-proc).
+	 * HERE BEGINS THE BENCHMARK.
 	 */
 	switch (ipc_type) {
 	case BENCHMARK_IPC_PIPE:
@@ -138,7 +126,7 @@ receiver(intptr_t read_handle, void *buf)
 	}
 
 	/*
-	 * HERE ENDS THE BENCHMARK (2-thread/2-proc).
+	 * HERE ENDS THE BENCHMARK.
 	 */
 	if (benchmark_pmc != BENCHMARK_PMC_NONE)
 		pmc_end();

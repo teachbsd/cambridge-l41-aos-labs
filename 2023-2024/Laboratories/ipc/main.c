@@ -26,11 +26,9 @@
  */
 
 #include <sys/param.h>
-#include <sys/cpuset.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
 #include <sys/mman.h>
-#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/sysctl.h>
 #include <sys/wait.h>
@@ -45,7 +43,6 @@
 #include <inttypes.h>
 #include <pmc.h>
 #include <libxo/xo.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,19 +54,20 @@
 #include "pmc.h"
 
 /*
- * L41: Labs 2 and 3 - IPC and TCP.  This benchmark pushes data through one of
- * several choices of IPC (pipes, local domain sockets, TCP sockets, shared
- * memory) with various I/O parameters including a configurable userspace
- * buffer size, and in one of several mods (2thread, 2proc).  It is able to
- * capture timestamps, getrusage data, and performance counter data on its
- * behaviour (using Arm's A72 counter set).  And it can print in text or JSON.
+ * Advanced Operating Systems1: Labs 2 and 3 - IPC and TCP.  This benchmark
+ * pushes data through one of several choices of IPC (pipes, local domain
+ * sockets, TCP sockets, shared memory) with various I/O parameters including
+ * a configurable userspace buffer size, and in one of two modes (2thread,
+ * 2proc).  It is able to capture timestamps, getrusage data, and performance
+ * counter data on its behaviour (using Arm's A72 counter set).  And it can
+ * print in text or JSON.
  */
 
-unsigned int Bflag;	/* bare */
-unsigned int gflag;	/* getrusage */
-unsigned int jflag;	/* JSON */
-unsigned int qflag;	/* quiet */
-unsigned int sflag;	/* set socket-buffer sizes */
+unsigned int Bflag;		/* bare */
+unsigned int gflag;		/* getrusage */
+unsigned int jflag;		/* JSON */
+unsigned int qflag;		/* quiet */
+unsigned int sflag;		/* set socket-buffer sizes */
 static unsigned int vflag;	/* verbose */
 
 #define	LOOPBACK_IFNAME		"lo0"	/* Used only for informative output. */
@@ -98,9 +96,9 @@ unsigned int benchmark_mode = BENCHMARK_MODE_DEFAULT;
 
 #define	BENCHMARK_IPC_INVALID		-1
 #define	BENCHMARK_IPC_PIPE		1
-#define	BENCHMARK_IPC_LOCAL_SOCKET		2
-#define	BENCHMARK_IPC_TCP_SOCKET		3
-#define	BENCHMARK_IPC_SHMEM			4
+#define	BENCHMARK_IPC_LOCAL_SOCKET	2
+#define	BENCHMARK_IPC_TCP_SOCKET	3
+#define	BENCHMARK_IPC_SHMEM		4
 
 #define	BENCHMARK_IPC_DEFAULT		BENCHMARK_IPC_PIPE
 unsigned int ipc_type = BENCHMARK_IPC_DEFAULT;

@@ -25,24 +25,10 @@
  */
 
 #include <sys/param.h>
-#include <sys/cpuset.h>
-#include <sys/ioctl.h>
-#include <sys/time.h>
 #include <sys/mman.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <sys/sysctl.h>
-#include <sys/wait.h>
 
-#include <net/if.h>
-
-#include <netinet/in.h>
-
-#include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <inttypes.h>
-#include <pmc.h>
 #include <libxo/xo.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -54,14 +40,15 @@
 
 #include "ipc.h"
 #include "main.h"
-#include "pmc.h"
 
 /*
  * Simplistic shared memory buffer implementation.  A memory map is shared by
- * the two parties (threads or processes).
+ * the two parties (threads or processes), with a buffer of size 'buffersize'.
+ * A mutex and two condition variables ping and ping ownership back and forth
+ * between the two threads/processes.  All data copying is performed in
+ * userspace rather than in the kernel.
  */
 
-#define	max(x, y)	((x) > (y) ? (x) : (y))
 #define	min(x, y)	((x) < (y) ? (x) : (y))
 #define	roundup(x, y)	((((x)+((y)-1))/(y))*(y))
 

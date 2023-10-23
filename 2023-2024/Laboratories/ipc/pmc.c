@@ -27,17 +27,8 @@
 
 #include <sys/param.h>
 #include <sys/cpuset.h>
-#include <sys/ioctl.h>
-#include <sys/time.h>
 #include <sys/mman.h>
-#include <sys/select.h>
-#include <sys/socket.h>
 #include <sys/sysctl.h>
-#include <sys/wait.h>
-
-#include <net/if.h>
-
-#include <netinet/in.h>
 
 #include <assert.h>
 #include <errno.h>
@@ -45,12 +36,10 @@
 #include <inttypes.h>
 #include <pmc.h>
 #include <libxo/xo.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sysexits.h>
-#include <time.h>
 #include <unistd.h>
 
 #include "main.h"
