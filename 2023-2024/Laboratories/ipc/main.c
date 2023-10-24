@@ -201,10 +201,9 @@ usage(void)
 {
 
 	xo_error(
-	    "%s [-Bgjqsv] [-b buffersize] [-i pipe|local|tcp] [-n iterations]\n"
-	    "    [-p tcp_port]"
-	    " [-P arch|dcache|instr|tlbmem]"
-	    " [-t totalsize] mode\n", getprogname());
+	    "%s [-Bgjqsv] [-b buffersize] [-i pipe|local|tcp|shmem] \n"
+	    "    [-n iterations] [-p tcp_port] [-P arch|dcache|instr|tlbmem]\n"
+	    "    [-t totalsize] mode\n", getprogname());
 	xo_error("\n"
   "Modes (pick one - default %s):\n"
   "    2thread     IPC between two threads in one process\n"
