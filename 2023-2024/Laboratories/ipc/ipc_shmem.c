@@ -128,16 +128,26 @@ ipc_objects_allocate_shmem(intptr_t *readfdp, intptr_t *writefdp)
 	pthread_mutexattr_t mattr;
 	pthread_condattr_t cattr;
 
+	/*
+	 * Set up a single, shared, inherited page for metadata.  Pre-zero
+	 * to prevent faults during the benchmark.
+	 */
 	shmem_metadata_ptr = mmap(NULL, getpagesize(), PROT_READ|PROT_WRITE,
 	    MAP_ANON, -1, 0);
 	if (shmem_metadata_ptr == MAP_FAILED)
 		xo_err(EX_OSERR, "mmap");
+	memset(shmem_metadata_ptr, 0, getpagesize());
+	if (minherit(shmem_metadata_ptr, getpagesize(), INHERIT_SHARE) < 0)
+		xo_err(EX_OSERR, "minherit");
+
+	/*
+	 * Set up the buffer itself, rounded up to page size, in the same way.
+	 */
 	shmem_buffer_ptr = mmap(NULL, roundup(buffersize, getpagesize()),
 	    PROT_READ|PROT_WRITE, MAP_ANON, -1, 0);
 	if (shmem_buffer_ptr == MAP_FAILED)
 		xo_err(EX_OSERR, "mmap");
-	if (minherit(shmem_metadata_ptr, getpagesize(), INHERIT_SHARE) < 0)
-		xo_err(EX_OSERR, "minherit");
+	memset(shmem_buffer_ptr, 0, roundup(buffersize, getpagesize()));
 	if (minherit(shmem_buffer_ptr, getpagesize(), INHERIT_SHARE) < 0)
 		xo_err(EX_OSERR, "minherit");
 
