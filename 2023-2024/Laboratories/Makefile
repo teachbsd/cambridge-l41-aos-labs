@@ -8,8 +8,7 @@ LAB2_TARBALL=2023-2024-advopsys-lab2.tbz
 LAB2_FILES=					\
 	LICENSE					\
 	jupyter_notebook_config.py		\
-	ipc/ipc.c				\
-	ipc/Makefile				\
+	ipc					\
 	2023-2024-advopsys-lab2.ipynb
 
 LAB3_TARBALL=2023-2024-advopsys-lab3.tbz
