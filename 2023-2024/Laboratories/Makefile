@@ -9,13 +9,13 @@ LAB2_FILES=					\
 	LICENSE					\
 	jupyter_notebook_config.py		\
 	ipc					\
-	2023-2024-advopsys-lab2.ipynb
+	2023-2024-advopsys-lab2.ipynb		\
+	2023-2024-advopsys-lab2-dtrace.ipynb
 
 LAB3_TARBALL=2023-2024-advopsys-lab3.tbz
 LAB3_FILES=					\
 	LICENSE					\
 	jupyter_notebook_config.py		\
-	2023-2024-advopsys-lab3-dtrace.ipynb	\
 	2023-2024-advopsys-lab3-partii.ipynb
 
 ALL=${LAB1_TARBALL} ${LAB2_TARBALL} ${LAB3_TARBALL} \
