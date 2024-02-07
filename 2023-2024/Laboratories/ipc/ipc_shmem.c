@@ -78,7 +78,7 @@ sender_shmem(struct sender_argument *sap)
 		}
 		const size_t bytes_to_write = min(buffersize, totalsize -
 		    write_sofar);
-		memcpy(sap->sa_buffer, shmem_buffer_ptr, bytes_to_write);
+		memcpy(shmem_buffer_ptr, sap->sa_buffer, bytes_to_write);
 		write_sofar += bytes_to_write;
 		shmem_metadata_ptr->sm_datapresent = 1;
 		if (pthread_cond_signal(&shmem_metadata_ptr->sm_cond_full)
@@ -107,7 +107,7 @@ receiver_shmem(intptr_t readfd, void *buf)
 		}
 		const size_t bytes_to_read = min(buffersize, totalsize -
 		    read_sofar);
-		memcpy(shmem_buffer_ptr, buf, bytes_to_read);
+		memcpy(buf, shmem_buffer_ptr, bytes_to_read);
 		read_sofar += bytes_to_read;
 		shmem_metadata_ptr->sm_datapresent = 0;
 		if (pthread_cond_signal(&shmem_metadata_ptr->sm_cond_empty)
