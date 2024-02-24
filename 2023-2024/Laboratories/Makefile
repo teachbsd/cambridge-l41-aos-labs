@@ -12,13 +12,7 @@ LAB2_FILES=					\
 	2023-2024-advopsys-lab2.ipynb		\
 	2023-2024-advopsys-lab2-dtrace.ipynb
 
-LAB3_TARBALL=2023-2024-advopsys-lab3.tbz
-LAB3_FILES=					\
-	LICENSE					\
-	jupyter_notebook_config.py		\
-	2023-2024-advopsys-lab3-partii.ipynb
-
-ALL=${LAB1_TARBALL} ${LAB2_TARBALL} ${LAB3_TARBALL} \
+ALL=${LAB1_TARBALL} ${LAB2_TARBALL}
 
 all: ${ALL}
 distribute: all
@@ -32,6 +26,3 @@ ${LAB1_TARBALL}: ${LAB1_FILES} Makefile
 
 ${LAB2_TARBALL}: ${LAB2_FILES} Makefile
 	tar -czf ${LAB2_TARBALL} ${LAB2_FILES}
-
-${LAB3_TARBALL}: ${LAB3_FILES} Makefile
-	tar -czf ${LAB3_TARBALL} ${LAB3_FILES}
